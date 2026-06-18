@@ -6,8 +6,9 @@ import TimelineControl from './components/TimelineControl';
 import Legend from './components/Legend';
 import { api } from './services/api';
 import { haversine, nearestSafeClinic } from './utils/geo';
+import { riskAtTime } from './utils/risk';
 import { routeTo } from './utils/routing';
-import type { Country, EvacRoute, Facility, Hexagon, Region, Stats, UserLocation } from './types';
+import type { Country, EvacRoute, Facility, Hexagon, Region, UserLocation } from './types';
 import './styles/globals.css';
 
 const PLAY_SECONDS = 8;
@@ -16,10 +17,10 @@ const NEARBY_M = 20000;
 export default function App() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [country, setCountry] = useState('Bangladesh');
-  const [allHexagons, setAllHexagons] = useState<Hexagon[]>([]);
+  const [hexagons, setHexagons] = useState<Hexagon[]>([]); // backend-only data, used for live stats
   const [allFacilities, setAllFacilities] = useState<Facility[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [floodBounds, setFloodBounds] = useState<[number, number, number, number] | null>(null);
   const [district, setDistrict] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [route, setRoute] = useState<EvacRoute | null>(null);
@@ -44,19 +45,18 @@ export default function App() {
     }).catch((e) => setError(String(e)));
   }, []);
 
-  // load all data for the country
   useEffect(() => {
     let cancelled = false;
     setError(null);
     setDistrict(null); setUserLocation(null); setRoute(null); setSelectedFacility(null);
-    Promise.all([api.hexagons(country), api.regions(country), api.stats(country),
-                 api.facilities(country), api.countries()])
-      .then(([hx, rg, st, fc, cs]) => {
+    Promise.all([api.hexagons(country), api.regions(country), api.facilities(country),
+                 api.floodMeta(country), api.countries()])
+      .then(([hx, rg, fc, meta, cs]) => {
         if (cancelled) return;
-        setAllHexagons(hx.hexagons);
+        setHexagons(hx.hexagons);
         setRegions(rg);
-        setStats(st);
         setAllFacilities(fc.facilities);
+        setFloodBounds(meta.bounds);
         const c = cs.find((x) => x.name === country);
         if (c) setFocus({ lng: c.center[0], lat: c.center[1], zoom: c.zoom });
       })
@@ -64,7 +64,6 @@ export default function App() {
     return () => { cancelled = true; };
   }, [country]);
 
-  // timeline clock
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
@@ -78,7 +77,6 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [playing]);
 
-  // compute evacuation route whenever the user location changes
   useEffect(() => {
     if (!userLocation || !allFacilities.length) { setRoute(null); return; }
     const clinic = nearestSafeClinic(userLocation, allFacilities);
@@ -88,12 +86,18 @@ export default function App() {
     return () => { cancelled = true; };
   }, [userLocation, allFacilities]);
 
-  const displayedHexagons = useMemo(
-    () => (district ? allHexagons.filter((h) => h.district === district) : allHexagons),
-    [allHexagons, district],
-  );
+  // live numbers: recomputed instantly as you scrub the timeline or pick a district
+  const live = useMemo(() => {
+    const hx = district ? hexagons.filter((h) => h.district === district) : hexagons;
+    let exposed = 0, high = 0, cells = 0;
+    for (const h of hx) {
+      const r = riskAtTime(h, time);
+      if (r > 0.05) { cells++; exposed += h.population_u5; }
+      if (r > 0.6) high++;
+    }
+    return { exposed, high, cells };
+  }, [hexagons, district, time]);
 
-  // markers only when drilled in (district or near a dropped location) to keep it clean
   const displayedFacilities = useMemo(() => {
     if (userLocation) return allFacilities.filter((f) => haversine(userLocation.lat, userLocation.lng, f.lat, f.lng) < NEARBY_M);
     if (district) return allFacilities.filter((f) => f.district === district);
@@ -121,7 +125,8 @@ export default function App() {
   return (
     <div className={`app ${isMobile ? 'mobile' : 'desktop'}`}>
       <Globe
-        hexagons={displayedHexagons}
+        country={country}
+        floodBounds={floodBounds}
         facilities={displayedFacilities}
         userLocation={userLocation}
         route={route}
@@ -135,7 +140,9 @@ export default function App() {
         countries={countries}
         country={country}
         onCountryChange={setCountry}
-        stats={stats}
+        live={live}
+        time={time}
+        scope={district}
         regions={regions}
         selectedDistrict={district}
         onSelectDistrict={selectDistrict}

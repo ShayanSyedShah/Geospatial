@@ -24,6 +24,13 @@ export const api = {
   facilities: (country: string) =>
     get<FacilityCollection>(`/api/facilities?country=${encodeURIComponent(country)}`),
 
+  floodMeta: (country: string) =>
+    get<{ bounds: [number, number, number, number]; tiers: string[] }>(
+      `/api/flood-meta?country=${encodeURIComponent(country)}`),
+
+  floodImageUrl: (country: string, tier: string) =>
+    `${BASE}/api/flood-image?country=${encodeURIComponent(country)}&tier=${tier}`,
+
   stats: (country: string) => get<Stats>(`/api/stats?country=${encodeURIComponent(country)}`),
 
   evidence: (h3Id: string) => get<Evidence>(`/api/evidence/${h3Id}`),

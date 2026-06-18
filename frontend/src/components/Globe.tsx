@@ -2,10 +2,10 @@ import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
-import { H3HexagonLayer } from '@deck.gl/geo-layers';
-import { IconLayer, PathLayer } from '@deck.gl/layers';
-import type { EvacRoute, Facility, Hexagon, UserLocation } from '../types';
-import { riskAtTime, waterColor } from '../utils/risk';
+import { BitmapLayer, IconLayer, PathLayer } from '@deck.gl/layers';
+import { api } from '../services/api';
+import type { EvacRoute, Facility, UserLocation } from '../types';
+import { tierOpacity } from '../utils/risk';
 
 export interface CameraFocus {
   lng: number;
@@ -13,8 +13,11 @@ export interface CameraFocus {
   zoom: number;
 }
 
+type Bounds = [number, number, number, number];
+
 interface GlobeProps {
-  hexagons: Hexagon[];
+  country: string;
+  floodBounds: Bounds | null;
   facilities: Facility[];
   userLocation: UserLocation | null;
   route: EvacRoute | null;
@@ -52,8 +55,10 @@ const CENTER: [number, number] = [90.36, 23.7];
 
 const iconUrl = (f: Facility) => `/m-${f.type}${f.at_risk ? '-risk' : ''}.png`;
 
+const TIERS = ['4h', '20h', '7d'] as const;
+
 export default function Globe({
-  hexagons, facilities, userLocation, route, onSelectFacility, onMapClick, time, focus,
+  country, floodBounds, facilities, userLocation, route, onSelectFacility, onMapClick, time, focus,
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -107,19 +112,18 @@ export default function Globe({
     const overlay = overlayRef.current;
     if (!overlay) return;
 
-    const water = new H3HexagonLayer<Hexagon>({
-      id: 'water',
-      data: hexagons,
-      pickable: false,
-      extruded: false,        // flat inundation sheet, not boxes
-      filled: true,
-      stroked: false,
-      coverage: 1,            // continuous water surface
-      highPrecision: false,
-      getHexagon: (d) => d.h3_id,
-      getFillColor: (d) => waterColor(riskAtTime(d, time)),
-      updateTriggers: { getFillColor: [time] },
-    });
+    // Smooth river/coast-following flood overlays (native ~1km raster), one per
+    // return-period tier, cross-faded by the timeline so water spreads over time.
+    const opacity = tierOpacity(time);
+    const floodLayers = floodBounds
+      ? TIERS.map((tier) => new BitmapLayer({
+          id: `flood-${tier}`,
+          image: api.floodImageUrl(country, tier),
+          bounds: floodBounds,
+          opacity: opacity[tier],
+          desaturate: 0,
+        }))
+      : [];
 
     const facLayer = new IconLayer<Facility>({
       id: 'facilities',
@@ -134,7 +138,7 @@ export default function Globe({
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const layers: any[] = [water, facLayer];
+    const layers: any[] = [...floodLayers, facLayer];
 
     if (route) {
       layers.push(new PathLayer<EvacRoute>({
@@ -160,7 +164,7 @@ export default function Globe({
       }));
     }
     overlay.setProps({ layers });
-  }, [hexagons, facilities, route, userLocation, time]);
+  }, [country, floodBounds, facilities, route, userLocation, time]);
 
   // fly to focus
   useEffect(() => {

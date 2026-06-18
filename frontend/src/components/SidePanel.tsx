@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
-import type { Country, EvacRoute, Region, Stats, UserLocation } from '../types';
-import { waterColor } from '../utils/risk';
+import type { Country, EvacRoute, Region, UserLocation } from '../types';
+import { timeLabel, waterColor } from '../utils/risk';
 import { compass } from '../utils/geo';
 
 interface Props {
   countries: Country[];
   country: string;
   onCountryChange: (c: string) => void;
-  stats: Stats | null;
+  live: { exposed: number; high: number; cells: number };
+  time: number;
+  scope: string | null;
   regions: Region[];
   selectedDistrict: string | null;
   onSelectDistrict: (d: string | null) => void;
@@ -35,7 +37,7 @@ const rgba = (c: number[]) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] ?? 255) / 25
 const km = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 export default function SidePanel({
-  countries, country, onCountryChange, stats, regions, selectedDistrict, onSelectDistrict,
+  countries, country, onCountryChange, live, time, scope, regions, selectedDistrict, onSelectDistrict,
   userLocation, onPreset, onClearLocation, route,
 }: Props) {
   const [query, setQuery] = useState('');
@@ -62,15 +64,16 @@ export default function SidePanel({
         </select>
       </div>
 
-      {stats && (
-        <div className="sp-stats">
-          <div className="stat"><b>{stats.children_at_risk.toLocaleString()}</b><span>children under-5 in flood zones</span></div>
-          <div className="stat-row">
-            <div className="stat sm"><b>{stats.high_risk_hexagons}</b><span>high-risk zones</span></div>
-            <div className="stat sm"><b>{stats.total_hexagons}</b><span>flooded cells</span></div>
-          </div>
+      <div className="sp-stats">
+        <div className="stat">
+          <b>{live.exposed.toLocaleString()}</b>
+          <span>children under-5 exposed{scope ? ` in ${scope}` : ''} at {timeLabel(time)}</span>
         </div>
-      )}
+        <div className="stat-row">
+          <div className="stat sm"><b>{live.high}</b><span>high-risk zones</span></div>
+          <div className="stat sm"><b>{live.cells}</b><span>flooded cells</span></div>
+        </div>
+      </div>
 
       {/* Location / evacuation */}
       <div className="sp-section">

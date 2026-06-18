@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from . import config
 from .brief import build_brief
@@ -99,6 +99,27 @@ async def get_hexagons(
 @app.get("/api/regions", response_model=list[RegionResponse])
 async def get_regions(country: str = Query(config.DEFAULT_COUNTRY)):
     return [RegionResponse(**r) for r in _pipeline().regions(country)]
+
+
+@app.get("/api/flood-meta")
+async def get_flood_meta(country: str = Query(config.DEFAULT_COUNTRY)):
+    import json
+    meta = json.loads((config.DATA_DIR / "flood_meta.json").read_text())
+    if country not in meta:
+        raise HTTPException(404, f"No flood overlay for {country}")
+    return meta[country]
+
+
+@app.get("/api/flood-image")
+async def get_flood_image(
+    country: str = Query(config.DEFAULT_COUNTRY),
+    tier: str = Query("7d", pattern="^(4h|20h|7d)$"),
+):
+    path = config.DATA_DIR / f"flood_{country}_{tier}.png"
+    if not path.exists():
+        raise HTTPException(404, "overlay not found")
+    return FileResponse(path, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/api/facilities", response_model=FacilityCollection)

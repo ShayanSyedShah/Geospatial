@@ -9,7 +9,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
-COPY data/hexagons.parquet ./data/hexagons.parquet
+# Precomputed serving data only (parquets, flood overlay PNGs + meta). The big
+# source rasters/geojson are excluded via .dockerignore.
+COPY data ./data
 
 ENV PORT=8000
 EXPOSE 8000

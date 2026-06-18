@@ -67,6 +67,20 @@ export function riskAtTime(h: Hexagon, f: number): number {
   return stops[3];
 }
 
+function smoothstep(a: number, b: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
+/** Opacity for each return-period overlay so water spreads as the timeline plays. */
+export function tierOpacity(f: number): Record<string, number> {
+  return {
+    '4h': smoothstep(0, 0.34, f),
+    '20h': smoothstep(0.34, 0.67, f),
+    '7d': smoothstep(0.67, 1.0, f),
+  };
+}
+
 export function timeLabel(f: number): string {
   const h = Math.round(f * FORECAST_HOURS);
   if (h === 0) return 'Now';
