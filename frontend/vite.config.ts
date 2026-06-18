@@ -31,7 +31,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         runtimeCaching: [
           {
-            urlPattern: /basemaps\.cartocdn\.com|tile\.openstreetmap\.org/,
+            urlPattern: /server\.arcgisonline\.com|basemaps\.cartocdn\.com|tile\.openstreetmap\.org/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'map-tiles',

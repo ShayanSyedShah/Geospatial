@@ -5,11 +5,11 @@ export type RGBA = [number, number, number, number];
 
 export function riskColor(risk: number): RGBA {
   if (risk <= 0.001) return [0, 0, 0, 0]; // dry -> invisible
-  if (risk > 0.8) return [211, 47, 47, 205]; // very high - red
-  if (risk > 0.6) return [255, 121, 30, 200]; // high - orange
-  if (risk > 0.4) return [255, 196, 60, 195]; // moderate - amber
-  if (risk > 0.2) return [120, 200, 120, 185]; // low - green
-  return [90, 150, 210, 170]; // minimal - blue (shallow water)
+  if (risk > 0.8) return [230, 40, 40, 228]; // very high - red
+  if (risk > 0.6) return [255, 124, 22, 222]; // high - orange
+  if (risk > 0.4) return [255, 201, 50, 216]; // moderate - amber
+  if (risk > 0.2) return [96, 205, 120, 205]; // low - green
+  return [70, 160, 230, 195]; // minimal - blue (shallow water)
 }
 
 export function riskLabel(risk: number): string {

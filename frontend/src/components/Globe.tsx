@@ -20,38 +20,36 @@ interface GlobeProps {
   focus: CameraFocus | null;
 }
 
-// Keyless raster style (CARTO basemaps) so the demo needs no API token.
+// Keyless satellite style (Esri World Imagery) so the demo needs no API token.
+// Real rivers/land/delta show through under the flood overlay; place labels are
+// a transparent reference layer drawn above the hexagons.
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
   sources: {
-    carto: {
+    satellite: {
       type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
-      ],
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
-      attribution: '© OpenStreetMap, © CARTO',
+      maxzoom: 19,
+      attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
     },
     labels: {
       type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}.png',
-      ],
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
     },
   },
   layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#0b1d2a' } },
-    { id: 'carto', type: 'raster', source: 'carto' },
+    { id: 'bg', type: 'background', paint: { 'background-color': '#06121c' } },
+    { id: 'satellite', type: 'raster', source: 'satellite' },
+    // subtle dark scrim so the colored risk hexagons stay readable over bright imagery
+    { id: 'scrim', type: 'background', paint: { 'background-color': '#04101a', 'background-opacity': 0.28 } },
   ],
 };
 
-// Uganda
-const CENTER: [number, number] = [32.3, 1.3];
+// Default camera (overridden per country by focus)
+const CENTER: [number, number] = [90.36, 23.7];
 
 export default function Globe({ hexagons, selectedHexagon, onSelectHexagon, time, focus }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,7 +65,7 @@ export default function Globe({ hexagons, selectedHexagon, onSelectHexagon, time
       container: containerRef.current,
       style: MAP_STYLE,
       center: CENTER,
-      zoom: 5.6,
+      zoom: 6.3,
       pitch: 50,
       bearing: 0,
       maxPitch: 75,
