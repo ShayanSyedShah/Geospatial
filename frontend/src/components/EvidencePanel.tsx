@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
 import type { Evidence, Hexagon, TimeHorizon } from '../types';
 import { api } from '../services/api';
-import { riskLabel } from '../utils/risk';
+import { riskAtTime, riskLabel, timeLabel } from '../utils/risk';
 
 interface Props {
   hexagon: Hexagon;
-  timeHorizon: TimeHorizon;
+  time: number;
   onClose: () => void;
 }
 
-export default function EvidencePanel({ hexagon, timeHorizon, onClose }: Props) {
+function horizonForTime(t: number): TimeHorizon {
+  if (t < 1 / 3) return '4h';
+  if (t < 2 / 3) return '20h';
+  return '7d';
+}
+
+export default function EvidencePanel({ hexagon, time, onClose }: Props) {
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [downloading, setDownloading] = useState(false);
 
@@ -18,13 +24,13 @@ export default function EvidencePanel({ hexagon, timeHorizon, onClose }: Props) 
     api.evidence(hexagon.h3_id).then(setEvidence).catch(() => setEvidence(null));
   }, [hexagon.h3_id]);
 
-  const risk = hexagon.flood_risk;
+  const risk = riskAtTime(hexagon, time);
   const nearestKm = hexagon.nearest_clinic_m != null ? (hexagon.nearest_clinic_m / 1000).toFixed(1) : null;
 
   const generateBrief = async () => {
     setDownloading(true);
     try {
-      await api.downloadBrief(hexagon.h3_id, timeHorizon);
+      await api.downloadBrief(hexagon.h3_id, horizonForTime(time));
     } finally {
       setDownloading(false);
     }
@@ -38,14 +44,14 @@ export default function EvidencePanel({ hexagon, timeHorizon, onClose }: Props) 
       <div className="evidence-header">
         <div>
           <h2>Evidence Chain</h2>
-          <span className="hexid">{hexagon.h3_id}</span>
+          <span className="hexid">{hexagon.district} · {hexagon.h3_id}</span>
         </div>
         <button onClick={onClose} className="close-btn" aria-label="Close">×</button>
       </div>
 
       <div className="evidence-content">
         <section>
-          <h3>Risk Assessment ({timeHorizon})</h3>
+          <h3>Risk Assessment ({timeLabel(time)})</h3>
           <div className="metric"><span>Flood risk</span><span className="value risk">{(risk * 100).toFixed(0)}% · {riskLabel(risk)}</span></div>
           <div className="metric"><span>Children under-5 at risk</span><span className="value">{hexagon.population_u5.toLocaleString()}</span></div>
           <div className="metric"><span>Nearby health clinics</span><span className="value">{hexagon.nearby_clinics}</span></div>

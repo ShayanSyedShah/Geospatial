@@ -1,5 +1,5 @@
 """Pydantic response schemas."""
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -8,19 +8,41 @@ class HexagonResponse(BaseModel):
     h3_id: str
     lat: float
     lng: float
-    flood_risk: float
+    # all three tiers so the client can animate the timeline without refetching
+    flood_risk_4h: float
+    flood_risk_20h: float
+    flood_risk_7d: float
     population_u5: int
     nearby_clinics: int
     nearby_schools: int
     nearest_clinic_m: Optional[float] = None
+    district: str
     uncertainty: float
 
 
 class HexagonCollection(BaseModel):
     country: str
-    time_horizon: str
+    district: Optional[str] = None
     count: int
-    hexagons: list[HexagonResponse]
+    hexagons: List[HexagonResponse]
+
+
+class RegionResponse(BaseModel):
+    district: str
+    hexagons: int
+    children_at_risk: int
+    max_risk: float
+    avg_risk: float
+    high_risk_hexagons: int
+    lat: float
+    lng: float
+
+
+class CountryResponse(BaseModel):
+    name: str
+    center: List[float]
+    zoom: float
+    default: bool
 
 
 class EvidenceResponse(BaseModel):
@@ -44,4 +66,4 @@ class StatsResponse(BaseModel):
 
 class BriefRequest(BaseModel):
     h3_id: str
-    time_horizon: str = "20h"
+    time_horizon: str = "7d"

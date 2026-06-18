@@ -14,24 +14,35 @@ def test_health():
 
 
 def test_hexagons():
-    r = client.get("/api/hexagons?country=Uganda&time_horizon=4h")
+    r = client.get("/api/hexagons?country=Bangladesh")
     assert r.status_code == 200
     body = r.json()
     assert body["count"] > 0
     h = body["hexagons"][0]
-    assert 0.0 <= h["flood_risk"] <= 1.0
+    assert 0.0 <= h["flood_risk_7d"] <= 1.0
     assert h["population_u5"] >= 0
-    # sorted by descending risk
-    risks = [x["flood_risk"] for x in body["hexagons"]]
+    assert "district" in h
+    # sorted by descending 7d risk
+    risks = [x["flood_risk_7d"] for x in body["hexagons"]]
     assert risks == sorted(risks, reverse=True)
 
 
-def test_time_horizon_validation():
-    assert client.get("/api/hexagons?time_horizon=bogus").status_code == 422
+def test_regions():
+    r = client.get("/api/regions?country=Bangladesh")
+    assert r.status_code == 200
+    regions = r.json()
+    assert len(regions) > 0
+    assert "district" in regions[0] and "children_at_risk" in regions[0]
+
+
+def test_countries():
+    r = client.get("/api/countries")
+    assert r.status_code == 200
+    assert any(c["default"] for c in r.json())
 
 
 def test_evidence_and_brief():
-    first = client.get("/api/hexagons?time_horizon=20h").json()["hexagons"][0]
+    first = client.get("/api/hexagons?country=Bangladesh").json()["hexagons"][0]
     h3_id = first["h3_id"]
 
     ev = client.get(f"/api/evidence/{h3_id}")

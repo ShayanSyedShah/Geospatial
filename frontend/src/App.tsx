@@ -1,19 +1,26 @@
-import { useEffect, useState } from 'react';
-import Globe from './components/Globe';
+import { useEffect, useMemo, useState } from 'react';
+import Globe, { type CameraFocus } from './components/Globe';
 import EvidencePanel from './components/EvidencePanel';
-import ControlPanel from './components/ControlPanel';
+import SidePanel from './components/SidePanel';
+import TimelineControl from './components/TimelineControl';
 import Legend from './components/Legend';
 import { api } from './services/api';
-import type { Hexagon, Stats, TimeHorizon } from './types';
+import type { Country, Hexagon, Region, Stats } from './types';
 import './styles/globals.css';
 
+const PLAY_SECONDS = 7; // time to sweep the full forecast window
+
 export default function App() {
-  const [country] = useState('Uganda');
-  const [timeHorizon, setTimeHorizon] = useState<TimeHorizon>('4h');
-  const [hexagons, setHexagons] = useState<Hexagon[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [country, setCountry] = useState<string>('Bangladesh');
+  const [allHexagons, setAllHexagons] = useState<Hexagon[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [district, setDistrict] = useState<string | null>(null);
   const [selected, setSelected] = useState<Hexagon | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [focus, setFocus] = useState<CameraFocus | null>(null);
+  const [time, setTime] = useState(1); // start at peak so the map reads immediately
+  const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -23,52 +30,102 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  // load country list once
+  useEffect(() => {
+    api.countries().then((cs) => {
+      setCountries(cs);
+      const def = cs.find((c) => c.default) ?? cs[0];
+      if (def) setCountry(def.name);
+    }).catch((e) => setError(String(e)));
+  }, []);
+
+  // load data when country changes
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     setError(null);
-    Promise.all([api.hexagons(country, timeHorizon), api.stats(country)])
-      .then(([hx, st]) => {
+    setDistrict(null);
+    setSelected(null);
+    Promise.all([api.hexagons(country), api.regions(country), api.stats(country), api.countries()])
+      .then(([hx, rg, st, cs]) => {
         if (cancelled) return;
-        setHexagons(hx.hexagons);
+        setAllHexagons(hx.hexagons);
+        setRegions(rg);
         setStats(st);
-        // keep selection in sync with the new horizon's risk values
-        setSelected((prev) => (prev ? hx.hexagons.find((h) => h.h3_id === prev.h3_id) ?? null : null));
+        const c = cs.find((x) => x.name === country);
+        if (c) setFocus({ lng: c.center[0], lat: c.center[1], zoom: c.zoom });
       })
-      .catch((e) => !cancelled && setError(String(e)))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
+      .catch((e) => !cancelled && setError(String(e)));
+    return () => { cancelled = true; };
+  }, [country]);
+
+  // animation clock
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      setTime((t) => {
+        const next = t + dt / PLAY_SECONDS;
+        return next >= 1 ? 0 : next;
+      });
+      raf = requestAnimationFrame(tick);
     };
-  }, [country, timeHorizon]);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);
+
+  const displayed = useMemo(
+    () => (district ? allHexagons.filter((h) => h.district === district) : allHexagons),
+    [allHexagons, district],
+  );
+
+  const selectDistrict = (d: string | null) => {
+    setDistrict(d);
+    setSelected(null);
+    if (d) {
+      const r = regions.find((x) => x.district === d);
+      if (r) setFocus({ lng: r.lng, lat: r.lat, zoom: 8.3 });
+    } else {
+      const c = countries.find((x) => x.name === country);
+      if (c) setFocus({ lng: c.center[0], lat: c.center[1], zoom: c.zoom });
+    }
+  };
 
   return (
     <div className={`app ${isMobile ? 'mobile' : 'desktop'}`}>
-      <Globe hexagons={hexagons} selectedHexagon={selected} onSelectHexagon={setSelected} />
+      <Globe
+        hexagons={displayed}
+        selectedHexagon={selected}
+        onSelectHexagon={setSelected}
+        time={time}
+        focus={focus}
+      />
 
-      <header className="app-title">
-        <h1>Flood Risk Map</h1>
-        <p>{country} · evidence-backed flood forecasts</p>
-      </header>
-
-      <ControlPanel
+      <SidePanel
+        countries={countries}
         country={country}
-        timeHorizon={timeHorizon}
-        onTimeHorizonChange={setTimeHorizon}
+        onCountryChange={setCountry}
         stats={stats}
-        compact={isMobile}
+        regions={regions}
+        selectedDistrict={district}
+        onSelectDistrict={selectDistrict}
       />
 
       <Legend />
 
-      {loading && <div className="toast">Loading flood forecasts…</div>}
+      <TimelineControl
+        time={time}
+        playing={playing}
+        onTime={(t) => { setPlaying(false); setTime(t); }}
+        onPlayToggle={() => setPlaying((p) => !p)}
+      />
+
       {error && <div className="toast error">Backend unavailable — {error}</div>}
-      {!loading && !error && !selected && (
-        <div className="hint">Tap a hexagon to see its evidence chain</div>
-      )}
 
       {selected && (
-        <EvidencePanel hexagon={selected} timeHorizon={timeHorizon} onClose={() => setSelected(null)} />
+        <EvidencePanel hexagon={selected} time={time} onClose={() => setSelected(null)} />
       )}
     </div>
   );

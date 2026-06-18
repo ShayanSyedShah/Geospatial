@@ -4,12 +4,20 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
 import type { Hexagon } from '../types';
-import { riskColor } from '../utils/risk';
+import { riskAtTime, riskColor } from '../utils/risk';
+
+export interface CameraFocus {
+  lng: number;
+  lat: number;
+  zoom: number;
+}
 
 interface GlobeProps {
   hexagons: Hexagon[];
   selectedHexagon: Hexagon | null;
   onSelectHexagon: (hex: Hexagon | null) => void;
+  time: number; // timeline fraction 0..1
+  focus: CameraFocus | null;
 }
 
 // Keyless raster style (CARTO basemaps) so the demo needs no API token.
@@ -45,7 +53,7 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
 // Uganda
 const CENTER: [number, number] = [32.3, 1.3];
 
-export default function Globe({ hexagons, selectedHexagon, onSelectHexagon }: GlobeProps) {
+export default function Globe({ hexagons, selectedHexagon, onSelectHexagon, time, focus }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
@@ -104,19 +112,24 @@ export default function Globe({ hexagons, selectedHexagon, onSelectHexagon }: Gl
       highPrecision: false,
       // slight gaps so individual cells read as a crisp hex grid
       coverage: 0.92,
-      // gentler towers that scale with risk; tall enough to feel 3D, short
-      // enough not to overlap into a messy wall at country zoom
       elevationScale: 1,
       getHexagon: (d) => d.h3_id,
-      getFillColor: (d) =>
-        d.h3_id === selectedId ? [255, 255, 255, 235] : riskColor(d.flood_risk),
-      getElevation: (d) => 600 + d.flood_risk * 5500,
-      // soft lighting gives the towers shading without a harsh look
+      getFillColor: (d) => {
+        if (d.h3_id === selectedId) return [255, 255, 255, 235];
+        return riskColor(riskAtTime(d, time));
+      },
+      // towers rise with the interpolated, time-varying risk
+      getElevation: (d) => {
+        const r = riskAtTime(d, time);
+        return r <= 0.001 ? 0 : 400 + r * 6000;
+      },
       material: { ambient: 0.6, diffuse: 0.6, shininess: 16, specularColor: [40, 60, 80] },
       autoHighlight: true,
       highlightColor: [255, 255, 255, 120],
+      transitions: { getElevation: 180, getFillColor: 180 },
       updateTriggers: {
-        getFillColor: [selectedId],
+        getFillColor: [selectedId, time],
+        getElevation: [time],
       },
       onClick: (info) => {
         selectRef.current((info.object as Hexagon) ?? null);
@@ -124,7 +137,19 @@ export default function Globe({ hexagons, selectedHexagon, onSelectHexagon }: Gl
       },
     });
     overlay.setProps({ layers: [layer] });
-  }, [hexagons, selectedHexagon]);
+  }, [hexagons, selectedHexagon, time]);
+
+  // fly to a focused district / country
+  useEffect(() => {
+    if (focus && mapRef.current) {
+      mapRef.current.flyTo({
+        center: [focus.lng, focus.lat],
+        zoom: focus.zoom,
+        duration: 1500,
+        essential: true,
+      });
+    }
+  }, [focus]);
 
   // fly to selected hexagon
   useEffect(() => {

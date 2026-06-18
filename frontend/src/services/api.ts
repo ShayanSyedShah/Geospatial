@@ -1,4 +1,4 @@
-import type { Evidence, HexagonCollection, Stats, TimeHorizon } from '../types';
+import type { Country, Evidence, HexagonCollection, Region, Stats, TimeHorizon } from '../types';
 
 // In dev, Vite proxies /api -> localhost:8000. In prod, set VITE_API_URL.
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
@@ -10,14 +10,18 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  hexagons: (country: string, timeHorizon: TimeHorizon) =>
-    get<HexagonCollection>(`/api/hexagons?country=${encodeURIComponent(country)}&time_horizon=${timeHorizon}`),
+  countries: () => get<Country[]>('/api/countries'),
+
+  hexagons: (country: string, district?: string | null) =>
+    get<HexagonCollection>(
+      `/api/hexagons?country=${encodeURIComponent(country)}` +
+      (district && district !== 'All' ? `&district=${encodeURIComponent(district)}` : '')),
+
+  regions: (country: string) => get<Region[]>(`/api/regions?country=${encodeURIComponent(country)}`),
 
   stats: (country: string) => get<Stats>(`/api/stats?country=${encodeURIComponent(country)}`),
 
   evidence: (h3Id: string) => get<Evidence>(`/api/evidence/${h3Id}`),
-
-  briefUrl: () => `${BASE}/api/brief`,
 
   async downloadBrief(h3Id: string, timeHorizon: TimeHorizon) {
     const res = await fetch(`${BASE}/api/brief`, {

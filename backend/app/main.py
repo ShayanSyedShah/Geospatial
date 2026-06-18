@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
@@ -14,7 +15,8 @@ from . import config
 from .brief import build_brief
 from .data_pipeline import DataPipeline
 from .models import (
-    BriefRequest, EvidenceResponse, HexagonCollection, HexagonResponse, StatsResponse,
+    BriefRequest, CountryResponse, EvidenceResponse, HexagonCollection,
+    HexagonResponse, RegionResponse, StatsResponse,
 )
 
 pipeline: DataPipeline | None = None
@@ -59,27 +61,44 @@ async def health():
             "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
+@app.get("/api/countries", response_model=list[CountryResponse])
+async def get_countries():
+    return [
+        CountryResponse(name=name, center=cfg["center"], zoom=cfg["zoom"],
+                        default=(name == config.DEFAULT_COUNTRY))
+        for name, cfg in config.COUNTRIES.items()
+    ]
+
+
 @app.get("/api/hexagons", response_model=HexagonCollection)
 async def get_hexagons(
     country: str = Query(config.DEFAULT_COUNTRY),
-    time_horizon: str = Query("4h", pattern="^(4h|20h|7d)$"),
+    district: Optional[str] = Query(None),
 ):
     p = _pipeline()
-    sub = p.hexagons(country, time_horizon)
+    sub = p.hexagons(country, district)
     hexagons = [
         HexagonResponse(
             h3_id=r.h3_id, lat=r.lat, lng=r.lng,
-            flood_risk=round(float(r.flood_risk), 4),
+            flood_risk_4h=round(float(r.flood_risk_4h), 4),
+            flood_risk_20h=round(float(r.flood_risk_20h), 4),
+            flood_risk_7d=round(float(r.flood_risk_7d), 4),
             population_u5=int(r.population_u5),
             nearby_clinics=int(r.nearby_clinics),
             nearby_schools=int(r.nearby_schools),
             nearest_clinic_m=_clean(float(r.nearest_clinic_m)),
+            district=str(r.district),
             uncertainty=float(r.uncertainty),
         )
         for r in sub.itertuples(index=False)
     ]
-    return HexagonCollection(country=country, time_horizon=time_horizon,
+    return HexagonCollection(country=country, district=district,
                              count=len(hexagons), hexagons=hexagons)
+
+
+@app.get("/api/regions", response_model=list[RegionResponse])
+async def get_regions(country: str = Query(config.DEFAULT_COUNTRY)):
+    return [RegionResponse(**r) for r in _pipeline().regions(country)]
 
 
 @app.get("/api/evidence/{h3_id}", response_model=EvidenceResponse)

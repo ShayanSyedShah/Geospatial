@@ -4,19 +4,40 @@ export interface Hexagon {
   h3_id: string;
   lat: number;
   lng: number;
-  flood_risk: number;
+  flood_risk_4h: number;
+  flood_risk_20h: number;
+  flood_risk_7d: number;
   population_u5: number;
   nearby_clinics: number;
   nearby_schools: number;
   nearest_clinic_m: number | null;
+  district: string;
   uncertainty: number;
 }
 
 export interface HexagonCollection {
   country: string;
-  time_horizon: TimeHorizon;
+  district: string | null;
   count: number;
   hexagons: Hexagon[];
+}
+
+export interface Region {
+  district: string;
+  hexagons: number;
+  children_at_risk: number;
+  max_risk: number;
+  avg_risk: number;
+  high_risk_hexagons: number;
+  lat: number;
+  lng: number;
+}
+
+export interface Country {
+  name: string;
+  center: [number, number];
+  zoom: number;
+  default: boolean;
 }
 
 export interface Stats {

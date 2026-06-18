@@ -36,6 +36,19 @@ def build_h3_cells(boundary: gpd.GeoDataFrame, res: int) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(rows, geometry="geometry", crs=config.GEO_CRS)
 
 
+def assign_districts(cells: gpd.GeoDataFrame, adm2: gpd.GeoDataFrame) -> pd.Series:
+    """Label each hexagon with the ADM2 district whose polygon contains its
+    centroid (geoBoundaries stores the name in `shapeName`)."""
+    name_col = "shapeName" if "shapeName" in adm2.columns else adm2.columns[0]
+    centroids = cells.copy()
+    centroids["geometry"] = cells.geometry.centroid
+    joined = gpd.sjoin(centroids[["geometry"]], adm2[[name_col, "geometry"]],
+                       how="left", predicate="within")
+    # ties (a centroid on a shared border) -> keep first
+    district = joined[~joined.index.duplicated(keep="first")][name_col]
+    return district.reindex(cells.index).fillna("Unknown")
+
+
 def flood_risk_for_raster(cells: gpd.GeoDataFrame, raster_path: str) -> pd.DataFrame:
     """Mean/max water depth per cell, normalised to a 0-1 risk score.
 
