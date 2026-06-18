@@ -20,19 +20,26 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
     carto: {
       type: 'raster',
       tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png',
+        'https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
       ],
       tileSize: 256,
       attribution: '© OpenStreetMap, © CARTO',
+    },
+    labels: {
+      type: 'raster',
+      tiles: [
+        'https://a.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
     },
   },
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#0b1d2a' } },
     { id: 'carto', type: 'raster', source: 'carto' },
   ],
-  projection: { type: 'globe' },
 };
 
 // Uganda
@@ -52,15 +59,26 @@ export default function Globe({ hexagons, selectedHexagon, onSelectHexagon }: Gl
       container: containerRef.current,
       style: MAP_STYLE,
       center: CENTER,
-      zoom: 5.4,
-      pitch: 45,
-      bearing: -10,
+      zoom: 5.6,
+      pitch: 50,
+      bearing: 0,
+      maxPitch: 75,
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
-    const overlay = new MapboxOverlay({ interleaved: false, layers: [] });
+    // interleaved => deck hexagons render INTO the map's 3D scene (correct depth
+    // and alignment), not as a floating overlay canvas.
+    const overlay = new MapboxOverlay({ interleaved: true, layers: [] });
     map.addControl(overlay as unknown as maplibregl.IControl);
+
+    // Place labels drawn ON TOP of the hexagons (added after the deck overlay)
+    // so geography reads clearly without cluttering the risk surface beneath.
+    map.on('load', () => {
+      if (!map.getLayer('labels')) {
+        map.addLayer({ id: 'labels', type: 'raster', source: 'labels', paint: { 'raster-opacity': 0.85 } });
+      }
+    });
 
     mapRef.current = map;
     overlayRef.current = overlay;
@@ -84,11 +102,19 @@ export default function Globe({ hexagons, selectedHexagon, onSelectHexagon }: Gl
       filled: true,
       stroked: false,
       highPrecision: false,
+      // slight gaps so individual cells read as a crisp hex grid
+      coverage: 0.92,
+      // gentler towers that scale with risk; tall enough to feel 3D, short
+      // enough not to overlap into a messy wall at country zoom
       elevationScale: 1,
       getHexagon: (d) => d.h3_id,
       getFillColor: (d) =>
-        d.h3_id === selectedId ? [255, 255, 255, 230] : riskColor(d.flood_risk),
-      getElevation: (d) => d.flood_risk * 12000,
+        d.h3_id === selectedId ? [255, 255, 255, 235] : riskColor(d.flood_risk),
+      getElevation: (d) => 600 + d.flood_risk * 5500,
+      // soft lighting gives the towers shading without a harsh look
+      material: { ambient: 0.6, diffuse: 0.6, shininess: 16, specularColor: [40, 60, 80] },
+      autoHighlight: true,
+      highlightColor: [255, 255, 255, 120],
       updateTriggers: {
         getFillColor: [selectedId],
       },
