@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+data/*.tif
+data/*.zip
+data/_raw/
+data/*.geojson
+tests/
+scripts/

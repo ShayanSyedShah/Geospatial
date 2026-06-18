@@ -1,0 +1,28 @@
+# Render blueprint: deploys the FastAPI backend (Docker) and the static frontend.
+# Usage: push to GitHub, then in Render -> "New +" -> "Blueprint" -> pick this repo.
+services:
+  - type: web
+    name: flood-risk-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+
+  - type: web
+    name: flood-risk-web
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    plan: free
+    envVars:
+      # Full https URL of the deployed backend, e.g. https://flood-risk-api.onrender.com
+      # Render prompts for this at deploy time (sync:false). The frontend reads it
+      # at BUILD time, so trigger a redeploy of this static site after setting it.
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

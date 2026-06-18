@@ -1,0 +1,24 @@
+# Data (large rasters fetched by scripts/download_data.py)
+backend/data/*.tif
+backend/data/*.zip
+backend/data/*.nc
+backend/data/_raw/
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/dev-dist/
+
+# Env
+.env
+.env.local
+*.local
+
+# OS
+.DS_Store
