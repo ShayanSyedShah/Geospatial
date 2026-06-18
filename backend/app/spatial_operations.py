@@ -67,6 +67,36 @@ def flood_risk_for_raster(cells: gpd.GeoDataFrame, raster_path: str) -> pd.DataF
     }, index=cells.index)
 
 
+def flood_risk_combined(cells: gpd.GeoDataFrame, riverine_path: str, coastal_path: str) -> pd.DataFrame:
+    """Per-cell flood risk = max of riverine (JRC) and coastal (Aqueduct) hazard.
+    Captures both inland river floods and coastal/storm-surge flooding."""
+    riv = flood_risk_for_raster(cells, riverine_path)
+    cst = flood_risk_for_raster(cells, coastal_path)
+    return pd.DataFrame({
+        "flood_risk": np.maximum(riv["flood_risk"].values, cst["flood_risk"].values),
+        "flood_depth_max_m": np.maximum(riv["flood_depth_max_m"].values, cst["flood_depth_max_m"].values),
+    }, index=cells.index)
+
+
+def sample_facility_risk(facilities: gpd.GeoDataFrame, raster_paths: list[str]) -> pd.DataFrame:
+    """Flood depth/risk at each facility point (max across the given rasters, e.g.
+    the most-severe riverine+coastal tier). Returns risk 0-1 and an at_risk flag."""
+    import rasterio
+    coords = [(geom.x, geom.y) for geom in facilities.geometry]
+    depth = np.zeros(len(facilities), dtype=float)
+    for path in raster_paths:
+        with rasterio.open(path) as src:
+            vals = np.array([v[0] for v in src.sample(coords)], dtype=float)
+            vals[(vals < 0) | (vals > 1e5)] = 0.0  # nodata guard
+            depth = np.maximum(depth, vals)
+    risk = np.clip(depth / config.FLOOD_DEPTH_NORM_M, 0.0, 1.0)
+    return pd.DataFrame({
+        "risk": risk,
+        "depth_m": depth,
+        "at_risk": depth > 0.05,
+    }, index=facilities.index)
+
+
 def population_under5(cells: gpd.GeoDataFrame, raster_paths: list[str]) -> np.ndarray:
     """Sum WorldPop under-5 counts (across the 4 age/sex grids) per cell."""
     total = np.zeros(len(cells), dtype=float)

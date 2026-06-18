@@ -19,11 +19,18 @@ SUPPORTED_COUNTRIES = list(COUNTRIES)
 
 # Flood hazard return-period rasters mapped to the UI time-horizon tiers.
 # Shorter horizon -> more frequent / lower-magnitude event (rp10);
-# longer horizon -> rarer / more severe event (rp500).
+# longer horizon -> rarer / more severe event (rp500). Each tier combines
+# RIVERINE (JRC/GloFAS) and COASTAL (WRI Aqueduct) hazard as max depth, so both
+# inland river floods and coastal/storm-surge flooding are captured.
 TIME_HORIZON_TO_RASTER = {
     "4h": "flood_rp10y.tif",
     "20h": "flood_rp100y.tif",
     "7d": "flood_rp500y.tif",
+}
+COASTAL_HORIZON_TO_RASTER = {
+    "4h": "coast_rp0010.tif",
+    "20h": "coast_rp0100.tif",
+    "7d": "coast_rp0500.tif",
 }
 
 # Water depth (m) used to normalise the JRC flood layers onto a 0-1 risk scale.

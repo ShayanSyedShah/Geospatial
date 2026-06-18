@@ -41,6 +41,17 @@ def test_countries():
     assert any(c["default"] for c in r.json())
 
 
+def test_facilities():
+    r = client.get("/api/facilities?country=Bangladesh")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] > 0
+    assert 0 < body["at_risk"] <= body["count"]
+    f = body["facilities"][0]
+    assert f["type"] in ("school", "clinic")
+    assert "at_risk" in f and "lat" in f and "lng" in f
+
+
 def test_evidence_and_brief():
     first = client.get("/api/hexagons?country=Bangladesh").json()["hexagons"][0]
     h3_id = first["h3_id"]

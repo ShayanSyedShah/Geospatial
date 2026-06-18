@@ -1,4 +1,6 @@
-import type { Country, Evidence, HexagonCollection, Region, Stats, TimeHorizon } from '../types';
+import type { Country, Evidence, Facility, HexagonCollection, Region, Stats, TimeHorizon } from '../types';
+
+interface FacilityCollection { country: string; count: number; at_risk: number; facilities: Facility[]; }
 
 // In dev, Vite proxies /api -> localhost:8000. In prod, set VITE_API_URL.
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
@@ -18,6 +20,9 @@ export const api = {
       (district && district !== 'All' ? `&district=${encodeURIComponent(district)}` : '')),
 
   regions: (country: string) => get<Region[]>(`/api/regions?country=${encodeURIComponent(country)}`),
+
+  facilities: (country: string) =>
+    get<FacilityCollection>(`/api/facilities?country=${encodeURIComponent(country)}`),
 
   stats: (country: string) => get<Stats>(`/api/stats?country=${encodeURIComponent(country)}`),
 

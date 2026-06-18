@@ -40,6 +40,32 @@ export interface Country {
   default: boolean;
 }
 
+export interface Facility {
+  id: string;
+  name: string;
+  type: 'school' | 'clinic';
+  lat: number;
+  lng: number;
+  risk: number;
+  at_risk: boolean;
+  district: string;
+}
+
+export interface UserLocation {
+  lat: number;
+  lng: number;
+  label?: string;
+}
+
+export interface EvacRoute {
+  to: Facility;
+  distanceM: number;
+  durationS: number;
+  path: [number, number][]; // [lng, lat]
+  mode: 'road' | 'direct';
+  bearing: number;
+}
+
 export interface Stats {
   country: string;
   total_hexagons: number;

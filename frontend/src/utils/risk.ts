@@ -12,6 +12,24 @@ export function riskColor(risk: number): RGBA {
   return [70, 160, 230, 195]; // minimal - blue (shallow water)
 }
 
+// Flood WATER palette: shallow cyan -> deep navy. Reads as real inundation.
+export function waterColor(risk: number): RGBA {
+  if (risk <= 0.001) return [0, 0, 0, 0];
+  if (risk > 0.8) return [22, 58, 150, 220]; // deepest
+  if (risk > 0.6) return [30, 96, 205, 210];
+  if (risk > 0.4) return [44, 132, 232, 198];
+  if (risk > 0.2) return [78, 175, 246, 184];
+  return [122, 205, 255, 168]; // shallowest
+}
+
+export const WATER_LEGEND = [
+  { color: '#163a96', label: 'Deepest' },
+  { color: '#1e60cd', label: 'Deep' },
+  { color: '#2c84e8', label: 'Moderate' },
+  { color: '#4eaff6', label: 'Shallow' },
+  { color: '#7acdff', label: 'Minimal' },
+];
+
 export function riskLabel(risk: number): string {
   if (risk > 0.8) return 'Very High';
   if (risk > 0.6) return 'High';

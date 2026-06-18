@@ -15,8 +15,8 @@ from . import config
 from .brief import build_brief
 from .data_pipeline import DataPipeline
 from .models import (
-    BriefRequest, CountryResponse, EvidenceResponse, HexagonCollection,
-    HexagonResponse, RegionResponse, StatsResponse,
+    BriefRequest, CountryResponse, EvidenceResponse, FacilityCollection,
+    FacilityResponse, HexagonCollection, HexagonResponse, RegionResponse, StatsResponse,
 )
 
 pipeline: DataPipeline | None = None
@@ -99,6 +99,24 @@ async def get_hexagons(
 @app.get("/api/regions", response_model=list[RegionResponse])
 async def get_regions(country: str = Query(config.DEFAULT_COUNTRY)):
     return [RegionResponse(**r) for r in _pipeline().regions(country)]
+
+
+@app.get("/api/facilities", response_model=FacilityCollection)
+async def get_facilities(
+    country: str = Query(config.DEFAULT_COUNTRY),
+    district: Optional[str] = Query(None),
+):
+    sub = _pipeline().facilities_for(country, district)
+    facilities = [
+        FacilityResponse(
+            id=str(r.id), name=str(r.name), type=str(r.type),
+            lat=float(r.lat), lng=float(r.lng), risk=float(r.risk),
+            at_risk=bool(r.at_risk), district=str(r.district),
+        )
+        for r in sub.itertuples(index=False)
+    ]
+    return FacilityCollection(country=country, count=len(facilities),
+                              at_risk=int(sub["at_risk"].sum()), facilities=facilities)
 
 
 @app.get("/api/evidence/{h3_id}", response_model=EvidenceResponse)

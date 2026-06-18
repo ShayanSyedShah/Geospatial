@@ -3,8 +3,9 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
-import type { Hexagon } from '../types';
-import { riskAtTime, riskColor } from '../utils/risk';
+import { IconLayer, PathLayer } from '@deck.gl/layers';
+import type { EvacRoute, Facility, Hexagon, UserLocation } from '../types';
+import { riskAtTime, waterColor } from '../utils/risk';
 
 export interface CameraFocus {
   lng: number;
@@ -14,15 +15,15 @@ export interface CameraFocus {
 
 interface GlobeProps {
   hexagons: Hexagon[];
-  selectedHexagon: Hexagon | null;
-  onSelectHexagon: (hex: Hexagon | null) => void;
+  facilities: Facility[];
+  userLocation: UserLocation | null;
+  route: EvacRoute | null;
+  onSelectFacility: (f: Facility) => void;
+  onMapClick: (lng: number, lat: number) => void;
   time: number; // timeline fraction 0..1
   focus: CameraFocus | null;
 }
 
-// Keyless satellite style (Esri World Imagery) so the demo needs no API token.
-// Real rivers/land/delta show through under the flood overlay; place labels are
-// a transparent reference layer drawn above the hexagons.
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
@@ -43,20 +44,22 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#06121c' } },
     { id: 'satellite', type: 'raster', source: 'satellite' },
-    // subtle dark scrim so the colored risk hexagons stay readable over bright imagery
-    { id: 'scrim', type: 'background', paint: { 'background-color': '#04101a', 'background-opacity': 0.28 } },
+    { id: 'scrim', type: 'background', paint: { 'background-color': '#04101a', 'background-opacity': 0.25 } },
   ],
 };
 
-// Default camera (overridden per country by focus)
 const CENTER: [number, number] = [90.36, 23.7];
 
-export default function Globe({ hexagons, selectedHexagon, onSelectHexagon, time, focus }: GlobeProps) {
+const iconUrl = (f: Facility) => `/m-${f.type}${f.at_risk ? '-risk' : ''}.png`;
+
+export default function Globe({
+  hexagons, facilities, userLocation, route, onSelectFacility, onMapClick, time, focus,
+}: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
-  const selectRef = useRef(onSelectHexagon);
-  selectRef.current = onSelectHexagon;
+  const cb = useRef({ onSelectFacility, onMapClick });
+  cb.current = { onSelectFacility, onMapClick };
 
   // init map once
   useEffect(() => {
@@ -66,25 +69,29 @@ export default function Globe({ hexagons, selectedHexagon, onSelectHexagon, time
       style: MAP_STYLE,
       center: CENTER,
       zoom: 6.3,
-      pitch: 50,
+      pitch: 52,
       bearing: 0,
-      maxPitch: 75,
+      maxPitch: 80,
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
-    // interleaved => deck hexagons render INTO the map's 3D scene (correct depth
-    // and alignment), not as a floating overlay canvas.
     const overlay = new MapboxOverlay({ interleaved: true, layers: [] });
     map.addControl(overlay as unknown as maplibregl.IControl);
 
-    // Place labels drawn ON TOP of the hexagons (added after the deck overlay)
-    // so geography reads clearly without cluttering the risk surface beneath.
     map.on('load', () => {
       if (!map.getLayer('labels')) {
         map.addLayer({ id: 'labels', type: 'raster', source: 'labels', paint: { 'raster-opacity': 0.85 } });
       }
     });
+
+    // Tap a facility -> select it; tap empty map -> drop "you are here".
+    map.on('click', (e) => {
+      const picked = overlay.pickObject({ x: e.point.x, y: e.point.y, radius: 8, layerIds: ['facilities'] });
+      if (picked?.object) cb.current.onSelectFacility(picked.object as Facility);
+      else cb.current.onMapClick(e.lngLat.lng, e.lngLat.lat);
+    });
+    map.getCanvas().style.cursor = 'crosshair';
 
     mapRef.current = map;
     overlayRef.current = overlay;
@@ -95,71 +102,72 @@ export default function Globe({ hexagons, selectedHexagon, onSelectHexagon, time
     };
   }, []);
 
-  // update deck layer when data / selection changes
+  // rebuild deck layers on data / time change
   useEffect(() => {
     const overlay = overlayRef.current;
     if (!overlay) return;
-    const selectedId = selectedHexagon?.h3_id;
-    const layer = new H3HexagonLayer<Hexagon>({
-      id: 'flood-hexagons',
+
+    const water = new H3HexagonLayer<Hexagon>({
+      id: 'water',
       data: hexagons,
-      pickable: true,
-      extruded: true,
+      pickable: false,
+      extruded: false,        // flat inundation sheet, not boxes
       filled: true,
       stroked: false,
+      coverage: 1,            // continuous water surface
       highPrecision: false,
-      // slight gaps so individual cells read as a crisp hex grid
-      coverage: 0.92,
-      elevationScale: 1,
       getHexagon: (d) => d.h3_id,
-      getFillColor: (d) => {
-        if (d.h3_id === selectedId) return [255, 255, 255, 235];
-        return riskColor(riskAtTime(d, time));
-      },
-      // towers rise with the interpolated, time-varying risk
-      getElevation: (d) => {
-        const r = riskAtTime(d, time);
-        return r <= 0.001 ? 0 : 400 + r * 6000;
-      },
-      material: { ambient: 0.6, diffuse: 0.6, shininess: 16, specularColor: [40, 60, 80] },
-      autoHighlight: true,
-      highlightColor: [255, 255, 255, 120],
-      transitions: { getElevation: 180, getFillColor: 180 },
-      updateTriggers: {
-        getFillColor: [selectedId, time],
-        getElevation: [time],
-      },
-      onClick: (info) => {
-        selectRef.current((info.object as Hexagon) ?? null);
-        return true;
-      },
+      getFillColor: (d) => waterColor(riskAtTime(d, time)),
+      updateTriggers: { getFillColor: [time] },
     });
-    overlay.setProps({ layers: [layer] });
-  }, [hexagons, selectedHexagon, time]);
 
-  // fly to a focused district / country
+    const facLayer = new IconLayer<Facility>({
+      id: 'facilities',
+      data: facilities,
+      pickable: true,
+      getPosition: (d) => [d.lng, d.lat],
+      getIcon: (d) => ({ url: iconUrl(d), width: 128, height: 128, anchorY: 128 }),
+      getSize: 34,
+      sizeUnits: 'pixels',
+      sizeMinPixels: 20,
+      sizeMaxPixels: 46,
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const layers: any[] = [water, facLayer];
+
+    if (route) {
+      layers.push(new PathLayer<EvacRoute>({
+        id: 'route',
+        data: [route],
+        getPath: (d) => d.path,
+        getColor: route.mode === 'road' ? [0, 229, 255, 235] : [255, 213, 10, 235],
+        getWidth: 6,
+        widthUnits: 'pixels',
+        widthMinPixels: 4,
+        capRounded: true,
+        jointRounded: true,
+      }));
+    }
+    if (userLocation) {
+      layers.push(new IconLayer<UserLocation>({
+        id: 'user',
+        data: [userLocation],
+        getPosition: (d) => [d.lng, d.lat],
+        getIcon: () => ({ url: '/m-user.png', width: 128, height: 128, anchorY: 64 }),
+        getSize: 40,
+        sizeUnits: 'pixels',
+      }));
+    }
+    overlay.setProps({ layers });
+  }, [hexagons, facilities, route, userLocation, time]);
+
+  // fly to focus
   useEffect(() => {
     if (focus && mapRef.current) {
-      mapRef.current.flyTo({
-        center: [focus.lng, focus.lat],
-        zoom: focus.zoom,
-        duration: 1500,
-        essential: true,
-      });
+      mapRef.current.flyTo({ center: [focus.lng, focus.lat], zoom: focus.zoom, duration: 1500, essential: true });
     }
   }, [focus]);
-
-  // fly to selected hexagon
-  useEffect(() => {
-    if (selectedHexagon && mapRef.current) {
-      mapRef.current.flyTo({
-        center: [selectedHexagon.lng, selectedHexagon.lat],
-        zoom: 7.5,
-        duration: 1400,
-        essential: true,
-      });
-    }
-  }, [selectedHexagon]);
 
   return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />;
 }

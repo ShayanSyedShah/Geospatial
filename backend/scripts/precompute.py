@@ -15,13 +15,15 @@ from app.data_pipeline import DataPipeline  # noqa: E402
 
 
 def main() -> None:
-    parquet = config.DATA_DIR / "hexagons.parquet"
-    if parquet.exists():
-        parquet.unlink()  # force a rebuild
+    for name in ("hexagons.parquet", "facilities.parquet"):
+        f = config.DATA_DIR / name
+        if f.exists():
+            f.unlink()  # force a rebuild
     p = DataPipeline()  # builds from rasters (no parquet present) and caches
-    print(f"\nWrote {len(p.df)} hexagons -> {parquet}")
-    print(p.df[["flood_risk_4h", "flood_risk_20h", "flood_risk_7d",
-                "population_u5", "nearby_clinics", "nearby_schools"]].describe().round(2))
+    print(f"\nWrote {len(p.df)} hexagons + {len(p.facilities)} facilities")
+    print("hexagons by country:", p.df.groupby("country").size().to_dict())
+    print("facilities at risk:",
+          p.facilities.groupby("country")["at_risk"].agg(["size", "sum"]).to_dict())
 
 
 if __name__ == "__main__":

@@ -27,6 +27,24 @@ class HexagonCollection(BaseModel):
     hexagons: List[HexagonResponse]
 
 
+class FacilityResponse(BaseModel):
+    id: str
+    name: str
+    type: str
+    lat: float
+    lng: float
+    risk: float
+    at_risk: bool
+    district: str
+
+
+class FacilityCollection(BaseModel):
+    country: str
+    count: int
+    at_risk: int
+    facilities: List[FacilityResponse]
+
+
 class RegionResponse(BaseModel):
     district: str
     hexagons: int
