@@ -15,11 +15,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Flood Risk Map',
-        short_name: 'Flood Risk',
-        description: 'Flood risk forecasts with a visible evidence chain',
-        theme_color: '#2196f3',
-        background_color: '#0b1d2a',
+        name: 'BEACON — flood decisions for children',
+        short_name: 'BEACON',
+        description: 'Live flood-impact decision tool for Sirajganj — works offline.',
+        theme_color: '#2f86d6',
+        background_color: '#0a1722',
         display: 'standalone',
         orientation: 'portrait-primary',
         icons: [
@@ -28,14 +28,16 @@ export default defineConfig({
         ],
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // precache the whole BEACON data bundle so flood/impact work offline
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,json,geojson,webmanifest}'],
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /server\.arcgisonline\.com|basemaps\.cartocdn\.com|tile\.openstreetmap\.org/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'map-tiles',
-              expiration: { maxEntries: 500, maxAgeSeconds: 2592000 },
+              expiration: { maxEntries: 1500, maxAgeSeconds: 2592000 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

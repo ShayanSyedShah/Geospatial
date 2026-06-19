@@ -33,6 +33,13 @@ export default function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [online, setOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const on = () => setOnline(true), off = () => setOnline(false);
+    window.addEventListener('online', on); window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
 
   useEffect(() => {
     Promise.all([beacon.impact(), beacon.unicef(), beacon.zones(), beacon.facilities(), beacon.buildings()])
@@ -137,6 +144,10 @@ export default function App() {
         waterAltitudeM={level} onSelect={setSelection} />
 
       <OpsHeader forecast={forecast} stage={trigger.stage} level={level} />
+
+      {!online && (
+        <div className="offline-banner">⚡ OFFLINE — showing last-known forecast + the full local flood &amp; impact model</div>
+      )}
 
       {gdacs?.active && (
         <div className="gdacs-banner">⚠ GDACS flood alert active for Bangladesh — {gdacs.alerts[0]?.level} · {gdacs.alerts[0]?.name}</div>
