@@ -18,8 +18,26 @@ export const beacon = {
   facilities: () => j<FeatureCollection>(`${B}/facilities.geojson`),
   buildings: () => j<FeatureCollection>(`${B}/buildings.geojson`),
   inundation: (levelM: number) => j<Feature>(`${B}/inundation/level_${Math.round(levelM * 100)}.geojson`),
-  reportUrl: () => `${(import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')}/api/report`,
+  glofas: () => j<GlofasForecast>(`${API}/api/glofas`),
+  reportUrl: () => `${API}/api/report`,
+  geosightExportUrl: () => `${API}/api/geosight-export`,
 };
+
+const API = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+
+export interface GlofasForecast {
+  station: string;
+  unit: string;
+  updated: string;
+  current: number;
+  iNow: number;
+  series: { date: string; q: number; p25: number; p75: number }[];
+  peak: { date: string; q: number };
+  leadDays: number;
+  trend: string;
+  source: string;
+  error?: string;
+}
 
 /** snap an arbitrary water level to the nearest precomputed level key */
 export function nearestLevel(levels: number[], v: number): number {

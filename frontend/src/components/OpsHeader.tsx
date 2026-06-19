@@ -1,13 +1,13 @@
-import { SCENARIOS, GAUGE_DANGER, type TriggerStage } from '../scenarios';
+import type { GlofasForecast } from '../services/beacon';
+import { DANGER_LEVEL, type TriggerStage } from '../scenarios';
 
 interface Props {
-  scenarioId: string;
-  gauge: number;
+  forecast: GlofasForecast | null;
   stage: TriggerStage;
-  onScenario: (id: string) => void;
+  level: number;
 }
 
-export default function OpsHeader({ scenarioId, gauge, stage, onScenario }: Props) {
+export default function OpsHeader({ forecast, stage, level }: Props) {
   return (
     <header className="ops-header">
       <div className="ops-brand">
@@ -15,21 +15,19 @@ export default function OpsHeader({ scenarioId, gauge, stage, onScenario }: Prop
         <b>BEACON</b>
       </div>
       <div className="ops-meta">
-        <span>📍 Sirajganj · Jamuna basin</span>
+        <span>📍 Sirajganj · Jamuna River</span>
         <span className="sep">|</span>
-        <span>Forecast: 4 Jul 2024 · FFWC 5-day</span>
-        <span className="sep">|</span>
-        <span className={`gauge ${stage}`}>
-          Bahadurabad gauge <b>{gauge.toFixed(1)} m</b> <em>(danger {GAUGE_DANGER} m)</em>
-        </span>
+        {forecast && !forecast.error ? (
+          <span className={`gauge ${stage}`}>
+            <span className="live-dot">●</span> Live GloFAS: <b>{(forecast.current / 1000).toFixed(0)}k m³/s</b>
+            {forecast.trend === 'rising' && <em> ▲ rising</em>} · peak <b>{(forecast.peak.q / 1000).toFixed(0)}k</b> in {forecast.leadDays}d
+            <span className="sep">·</span> est. level <b>{level.toFixed(1)} m</b> <em>(danger {DANGER_LEVEL} m)</em>
+          </span>
+        ) : (
+          <span>Live forecast unavailable</span>
+        )}
       </div>
-      <div className="ops-scenarios">
-        {SCENARIOS.map((s) => (
-          <button key={s.id} className={scenarioId === s.id ? 'active' : ''} onClick={() => onScenario(s.id)}>
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <div className="ops-src">{forecast?.source ?? 'GloFAS v4 · Copernicus EMS'}</div>
     </header>
   );
 }

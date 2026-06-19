@@ -1,46 +1,38 @@
-// Real-world framing for the demo. The flood-level slider uses local DEM water
-// levels (honest bathtub); each scenario pairs a level with the REAL Bahadurabad
-// gauge forecast it corresponds to, so the tool reads like the operational
-// picture without claiming to be the FFWC/GloFAS trigger system itself.
+// BEACON model: translate the LIVE GloFAS river-discharge forecast into a water
+// level, and classify the anticipatory-action stage. The water-level model uses
+// an indicative stage-discharge rating anchored to the FFWC danger level — we
+// don't have the official rating curve for this exact reach, so it's labeled.
 
-export interface Scenario {
-  id: string;
-  label: string;
-  level: number;   // local DEM water-surface level (m) -> drives the bathtub
-  gauge: number;   // corresponding Bahadurabad gauge reading (m, PWD datum)
-  sub: string;
-}
+export const DANGER_LEVEL = 12.9;   // FFWC Serajganj danger level (mMSL)
+export const NORMAL_LEVEL = 7.5;
+export const READINESS_LEVEL = DANGER_LEVEL - 2.0;
 
-// Bahadurabad gauge: danger level 19.5 m; AA Stage-II "Action" trigger at +0.85 m.
-export const GAUGE_DANGER = 19.5;
-export const GAUGE_ACTION = 20.35;
-
-export const SCENARIOS: Scenario[] = [
-  { id: 'normal', label: 'Normal monsoon', level: 8.5, gauge: 18.6, sub: 'River high but within its banks' },
-  { id: 'jul2024', label: '4 July 2024 flood', level: 13.0, gauge: 20.4, sub: 'Danger level crossed — the day the AA trigger fired' },
-  { id: 'extreme', label: 'Extreme (1998-like)', level: 15.5, gauge: 21.3, sub: 'Catastrophic — most of the floodplain inundated' },
+// (discharge m³/s -> local water level m) anchor points for the Jamuna reach.
+const RATING: [number, number][] = [
+  [25000, 7.0], [50000, 11.0], [70000, 12.9], [90000, 15.0], [110000, 16.0],
 ];
 
-export const DEFAULT_SCENARIO = 'jul2024';
-
-/** Map a local DEM level to an approximate Bahadurabad gauge reading (for the header). */
-export function levelToGauge(level: number): number {
-  // anchored to the scenario pairs; linear between normal and extreme
-  const lo = SCENARIOS[0], hi = SCENARIOS[2];
-  const g = lo.gauge + ((level - lo.level) / (hi.level - lo.level)) * (hi.gauge - lo.gauge);
-  return Math.max(17.5, Math.min(22, g));
+export function levelFromDischarge(q: number): number {
+  if (q <= RATING[0][0]) return RATING[0][1];
+  for (let i = 1; i < RATING.length; i++) {
+    if (q <= RATING[i][0]) {
+      const [q0, l0] = RATING[i - 1], [q1, l1] = RATING[i];
+      return l0 + ((q - q0) / (q1 - q0)) * (l1 - l0);
+    }
+  }
+  return RATING[RATING.length - 1][1];
 }
 
 export type TriggerStage = 'monitor' | 'readiness' | 'action';
 
-export function triggerStage(gauge: number): { stage: TriggerStage; label: string; text: string } {
-  if (gauge >= GAUGE_ACTION) return {
+export function triggerStage(level: number): { stage: TriggerStage; label: string; text: string } {
+  if (level >= DANGER_LEVEL) return {
     stage: 'action', label: 'ACT NOW',
-    text: `Action trigger crossed (gauge ${gauge.toFixed(1)} m ≥ ${GAUGE_ACTION} m). Pre-position supplies — hours, not days.`,
+    text: `Forecast crosses the danger level (${DANGER_LEVEL} m). Pre-position supplies for the zones below.`,
   };
-  if (gauge >= GAUGE_DANGER) return {
+  if (level >= READINESS_LEVEL) return {
     stage: 'readiness', label: 'READINESS',
-    text: `Above danger level (${GAUGE_DANGER} m). Ready teams and stocks; watch the 5-day forecast.`,
+    text: `Approaching the danger level (${DANGER_LEVEL} m). Ready teams and stocks; watch the forecast.`,
   };
-  return { stage: 'monitor', label: 'MONITOR', text: 'Below danger level. Routine monitoring.' };
+  return { stage: 'monitor', label: 'MONITOR', text: `Below danger level (${DANGER_LEVEL} m). Routine monitoring.` };
 }

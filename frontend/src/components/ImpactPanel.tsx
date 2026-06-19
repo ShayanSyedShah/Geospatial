@@ -7,10 +7,11 @@ interface Props {
   ranked: RankedZone[];
   unicef: UnicefStat | null;
   onReport: () => void;
+  onExportGeoSight: () => void;
   generating: boolean;
 }
 
-export default function ImpactPanel({ trigger, impact, ranked, unicef, onReport, generating }: Props) {
+export default function ImpactPanel({ trigger, impact, ranked, unicef, onReport, onExportGeoSight, generating }: Props) {
   const t = impact?.total;
   const top = ranked.slice(0, 3);
   const topKids = top.reduce((s, z) => s + z.childrenU5, 0);
@@ -41,9 +42,17 @@ export default function ImpactPanel({ trigger, impact, ranked, unicef, onReport,
         </div>
       )}
 
-      <button className="report-btn" onClick={onReport} disabled={generating}>
-        {generating ? 'Generating…' : '📄 Generate cited action report'}
-      </button>
+      <div className="action-btns">
+        <button className="report-btn" onClick={onReport} disabled={generating}>
+          {generating ? 'Generating…' : '📄 Cited report'}
+        </button>
+        <button className="export-btn" onClick={onExportGeoSight} title="Export as a GeoSight indicator layer">
+          ⬆ To GeoSight
+        </button>
+      </div>
+      <div className="geosight-note">
+        Adds the what-if + “who to help first” layer GeoSight doesn’t have — exportable back into it.
+      </div>
 
       {unicef && (
         <div className="unicef-cite">
