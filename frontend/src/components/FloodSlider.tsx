@@ -4,16 +4,17 @@ interface Props {
   max: number;
   normal: number;
   danger: number;
+  gauge: number;
   onChange: (v: number) => void;
 }
 
-export default function FloodSlider({ value, min, max, normal, danger, onChange }: Props) {
+export default function FloodSlider({ value, min, max, normal, danger, gauge, onChange }: Props) {
   const pct = (v: number) => ((v - min) / (max - min)) * 100;
   return (
     <div className="flood-slider">
       <div className="fs-head">
-        <span className="fs-label">Flood water level</span>
-        <span className="fs-value">{value.toFixed(1)} m</span>
+        <span className="fs-label">Flood scenario — local water level</span>
+        <span className="fs-value">{value.toFixed(1)} m <em>· gauge ~{gauge.toFixed(1)} m</em></span>
       </div>
       <div className="fs-track-wrap">
         <input

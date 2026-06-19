@@ -1,28 +1,26 @@
-import type { LevelImpact, UnicefStat } from '../types';
+import type { LevelImpact, RankedZone, UnicefStat } from '../types';
+import type { TriggerStage } from '../scenarios';
 
 interface Props {
-  level: number;
-  danger: number;
+  trigger: { stage: TriggerStage; label: string; text: string };
   impact: LevelImpact | null;
+  ranked: RankedZone[];
   unicef: UnicefStat | null;
   onReport: () => void;
   generating: boolean;
 }
 
-function verdict(level: number, danger: number) {
-  if (level >= danger) return { label: 'DANGER', cls: 'danger', text: 'At this level the floodplain is inundated — act now.' };
-  if (level >= danger - 2.5) return { label: 'WATCH', cls: 'watch', text: 'Water is rising toward the danger level — prepare.' };
-  return { label: 'LOW', cls: 'safe', text: 'Limited inundation at this level.' };
-}
-
-export default function ImpactPanel({ level, danger, impact, unicef, onReport, generating }: Props) {
-  const v = verdict(level, danger);
+export default function ImpactPanel({ trigger, impact, ranked, unicef, onReport, generating }: Props) {
   const t = impact?.total;
+  const top = ranked.slice(0, 3);
+  const topKids = top.reduce((s, z) => s + z.childrenU5, 0);
+  const topClinics = top.reduce((s, z) => s + z.clinics, 0);
+
   return (
     <div className="impact-panel">
-      <div className={`verdict ${v.cls}`}>
-        <span className="verdict-badge">{v.label}</span>
-        <span className="verdict-text">{v.text}</span>
+      <div className={`verdict ${trigger.stage}`}>
+        <span className="verdict-badge">{trigger.label}</span>
+        <span className="verdict-text">{trigger.text}</span>
       </div>
 
       <div className="impact-hero">
@@ -35,8 +33,16 @@ export default function ImpactPanel({ level, danger, impact, unicef, onReport, g
         <div className="impact-stat"><b>{(t?.maxDepth ?? 0).toFixed(1)}m</b><span>max depth</span></div>
       </div>
 
+      {top.length > 0 && (
+        <div className="next-action">
+          <span className="na-label">What to do</span>
+          Reach <b>{top.map((z) => z.name).join(', ')}</b> first — ~{topKids.toLocaleString()} children u-5
+          {topClinics > 0 && <> and {topClinics} clinics</> } in the flood zone. Pre-position water + hygiene kits.
+        </div>
+      )}
+
       <button className="report-btn" onClick={onReport} disabled={generating}>
-        {generating ? 'Generating…' : '📄 Generate action report'}
+        {generating ? 'Generating…' : '📄 Generate cited action report'}
       </button>
 
       {unicef && (
