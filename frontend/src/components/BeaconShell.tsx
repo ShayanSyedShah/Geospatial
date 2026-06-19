@@ -25,7 +25,7 @@ export default function BeaconShell({ active, onNavigate, children }: {
           <button
             key={n.id}
             className={`rail-item ${active === n.id ? 'active' : ''}`}
-            onClick={() => onNavigate(n.id)}
+            onClick={() => { onNavigate(n.id); setOpen(false); }}
             title={n.label}
           >
             <span className="ri-icon">{n.icon}</span>
