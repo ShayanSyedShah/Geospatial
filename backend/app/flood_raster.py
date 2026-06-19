@@ -16,28 +16,53 @@ from rasterio.features import geometry_mask
 from rasterio.transform import array_bounds
 from rasterio.warp import Resampling, reproject
 from rasterio.windows import from_bounds
+from scipy.ndimage import gaussian_filter, zoom
 
 from . import config
 
-# Water palette (depth-normalised), matching the frontend waterColor().
-_STOPS = [
-    (0.2, (122, 205, 255, 170)),
-    (0.4, (78, 175, 246, 186)),
-    (0.6, (44, 132, 232, 200)),
-    (0.8, (30, 96, 205, 212)),
-    (1.01, (22, 58, 150, 222)),
+# Smoothing: upsample the ~1km depth grid + gaussian blur so it isn't blocky.
+UPSCALE = 3
+SIGMA = 1.5
+MAX_ALPHA = 200  # per-tier ceiling; frontend further caps combined opacity
+FEATHER_M = 0.18  # depth (m) over which the water edge fades in
+
+# Colour gradient control points: (normalised-depth, (r,g,b)). Shallow -> deep.
+_GRAD = [
+    (0.00, (140, 214, 255)),
+    (0.22, (96, 186, 250)),
+    (0.45, (52, 140, 236)),
+    (0.70, (32, 100, 208)),
+    (1.00, (20, 52, 140)),
 ]
+
+
+def _build_lut() -> np.ndarray:
+    """256-entry RGBA lookup table: continuous colour + feathered alpha."""
+    xs = np.array([g[0] for g in _GRAD])
+    rs = np.array([g[1][0] for g in _GRAD])
+    gs = np.array([g[1][1] for g in _GRAD])
+    bs = np.array([g[1][2] for g in _GRAD])
+    t = np.linspace(0, 1, 256)
+    lut = np.zeros((256, 4), dtype=np.uint8)
+    lut[:, 0] = np.interp(t, xs, rs)
+    lut[:, 1] = np.interp(t, xs, gs)
+    lut[:, 2] = np.interp(t, xs, bs)
+    lut[:, 3] = MAX_ALPHA
+    return lut
+
+
+_LUT = _build_lut()
 
 
 def _colorize(depth: np.ndarray) -> np.ndarray:
     r = np.clip(depth / config.FLOOD_DEPTH_NORM_M, 0.0, 1.0)
-    h, w = depth.shape
-    rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    prev = 0.001
-    for thr, col in _STOPS:
-        m = (r > prev) & (r <= thr)
-        rgba[m] = col
-        prev = thr
+    idx = (r * 255).astype(np.uint8)
+    rgba = _LUT[idx]
+    # feather the edge: alpha ramps 0 -> MAX_ALPHA over the first FEATHER_M of depth
+    feather = np.clip(depth / FEATHER_M, 0.0, 1.0)
+    feather = feather * feather * (3 - 2 * feather)  # smoothstep
+    rgba = rgba.copy()
+    rgba[..., 3] = (rgba[..., 3] * feather).astype(np.uint8)
     return rgba
 
 
@@ -61,7 +86,11 @@ def _combined_depth(riv_path: str, cst_path: str, bounds, boundary_geoms):
     # zero out everything outside the country boundary
     outside = geometry_mask(boundary_geoms, out_shape=shape, transform=wt, invert=False)
     depth[outside] = 0
-    real_bounds = array_bounds(shape[0], shape[1], wt)  # (w, s, e, n)
+    real_bounds = array_bounds(shape[0], shape[1], wt)  # geographic extent (unchanged by upsampling)
+    # upsample + gaussian-smooth so the ~1km grid renders smooth, not blocky
+    depth = zoom(depth, UPSCALE, order=1)
+    depth = gaussian_filter(depth, sigma=SIGMA)
+    depth[depth < 0.01] = 0  # keep dry areas crisp-transparent
     return depth, real_bounds
 
 
@@ -85,7 +114,7 @@ def render_all() -> dict:
             )
             out_bounds = real_bounds
             img = Image.fromarray(_colorize(depth), "RGBA")
-            img.save(config.DATA_DIR / f"flood_{country}_{tier}.png")
+            img.save(config.DATA_DIR / f"flood_{country}_{tier}.webp", "WEBP", quality=80, method=6)
             print(f"[flood] {country} {tier}: {img.size} flooded_px={(depth>0).sum()}")
         meta[country] = {
             "bounds": [out_bounds[0], out_bounds[1], out_bounds[2], out_bounds[3]],

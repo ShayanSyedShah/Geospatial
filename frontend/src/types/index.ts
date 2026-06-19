@@ -1,86 +1,57 @@
-export type TimeHorizon = '4h' | '20h' | '7d';
+// BEACON types — Sirajganj flood "what-if" decision tool.
 
-export interface Hexagon {
-  h3_id: string;
-  lat: number;
-  lng: number;
-  flood_risk_4h: number;
-  flood_risk_20h: number;
-  flood_risk_7d: number;
-  population_u5: number;
-  nearby_clinics: number;
-  nearby_schools: number;
-  nearest_clinic_m: number | null;
-  district: string;
-  uncertainty: number;
-}
-
-export interface HexagonCollection {
-  country: string;
-  district: string | null;
-  count: number;
-  hexagons: Hexagon[];
-}
-
-export interface Region {
-  district: string;
-  hexagons: number;
-  children_at_risk: number;
-  max_risk: number;
-  avg_risk: number;
-  high_risk_hexagons: number;
-  lat: number;
-  lng: number;
-}
-
-export interface Country {
+export interface ZoneImpact {
   name: string;
-  center: [number, number];
-  zoom: number;
-  default: boolean;
+  childrenU5: number;
+  schools: number;
+  clinics: number;
+  meanDepth: number;
 }
 
-export interface Facility {
-  id: string;
-  name: string;
-  type: 'school' | 'clinic';
-  lat: number;
-  lng: number;
-  risk: number;
-  at_risk: boolean;
-  district: string;
+export interface LevelImpact {
+  waterElev: number;
+  total: { childrenU5: number; schools: number; clinics: number; maxDepth: number };
+  zones: ZoneImpact[];
 }
 
-export interface UserLocation {
-  lat: number;
-  lng: number;
-  label?: string;
+export interface Impact {
+  levels: number[];
+  normal: number;
+  danger: number;
+  byLevel: Record<string, LevelImpact>;
 }
 
-export interface EvacRoute {
-  to: Facility;
-  distanceM: number;
-  durationS: number;
-  path: [number, number][]; // [lng, lat]
-  mode: 'road' | 'direct';
-  bearing: number;
-}
-
-export interface Stats {
+export interface UnicefStat {
+  indicator: string;
   country: string;
-  total_hexagons: number;
-  children_at_risk: number;
-  avg_flood_risk: number;
-  high_risk_hexagons: number;
+  value: number;
+  year: number;
+  ci_low: number | null;
+  ci_high: number | null;
+  source: string;
+  url: string;
 }
 
-export interface Evidence {
-  h3_id: string;
-  risk: Record<string, number | null>;
-  flood_forecast: Record<string, unknown>;
-  population: Record<string, unknown>;
-  infrastructure: { schools: Record<string, string>; clinics: Record<string, string> };
-  overall_uncertainty: number;
-  decision_threshold: number;
-  decision_rule: string;
+// a ranked zone (computed client-side from LevelImpact.zones)
+export interface RankedZone extends ZoneImpact {
+  score: number;
+  rank: number;
+  // % contribution of each factor to the score (for the "why #1" explanation)
+  contrib: { children: number; flood: number; access: number };
+  nearestClinicKm: number;
+}
+
+export interface Weights {
+  children: number;
+  flood: number;
+  access: number;
+}
+
+// what a click selects for the evidence popup
+export interface Selection {
+  kind: 'zone' | 'school' | 'clinic';
+  name: string;
+  lng: number;
+  lat: number;
+  props: Record<string, string | number>;
 }
