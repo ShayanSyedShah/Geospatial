@@ -1,4 +1,5 @@
-import { timeLabel, scenarioLabel } from '../utils/risk';
+import type { CSSProperties } from 'react';
+import { timeLabel, scenarioLabel, TIMELINE_TICKS } from '../utils/risk';
 
 interface Props {
   time: number; // 0..1
@@ -7,15 +8,9 @@ interface Props {
   onPlayToggle: () => void;
 }
 
-// keyframe ticks for the three real hazard tiers
-const TICKS = [
-  { f: 0, label: 'Now' },
-  { f: 1 / 3, label: '+24h · rp10' },
-  { f: 2 / 3, label: '+48h · rp100' },
-  { f: 1, label: '+72h · rp500' },
-];
-
 export default function TimelineControl({ time, playing, onTime, onPlayToggle }: Props) {
+  const pct = `${time * 100}%`;
+
   return (
     <div className="timeline">
       <button className="play-btn" onClick={onPlayToggle} aria-label={playing ? 'Pause' : 'Play'}>
@@ -26,17 +21,26 @@ export default function TimelineControl({ time, playing, onTime, onPlayToggle }:
           <span className="time-now">{timeLabel(time)}</span>
           <span className="time-scenario">{scenarioLabel(time)}</span>
         </div>
-        <input
-          className="time-slider"
-          type="range"
-          min={0}
-          max={1}
-          step={0.001}
-          value={time}
-          onChange={(e) => onTime(parseFloat(e.target.value))}
-        />
+        <div className="timeline-track">
+          <div className="timeline-fill" style={{ width: pct }} aria-hidden />
+          <div className="timeline-phase-marks" aria-hidden>
+            {TIMELINE_TICKS.map((t) => (
+              <span key={t.f} className="phase-mark" style={{ left: `${t.f * 100}%` }} />
+            ))}
+          </div>
+          <input
+            className="time-slider"
+            type="range"
+            min={0}
+            max={1}
+            step={0.001}
+            value={time}
+            onChange={(e) => onTime(parseFloat(e.target.value))}
+            style={{ '--time-pct': pct } as CSSProperties}
+          />
+        </div>
         <div className="timeline-ticks">
-          {TICKS.map((t) => (
+          {TIMELINE_TICKS.map((t) => (
             <span key={t.f} style={{ left: `${t.f * 100}%` }} className="tick">
               {t.label}
             </span>

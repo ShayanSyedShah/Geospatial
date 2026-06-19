@@ -1,11 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { BitmapLayer, IconLayer, PathLayer } from '@deck.gl/layers';
+import { H3HexagonLayer } from '@deck.gl/geo-layers';
 import { api } from '../services/api';
-import type { EvacRoute, Facility, UserLocation } from '../types';
-import { tierOpacity } from '../utils/risk';
+import type { EvacRoute, Facility, Hexagon, UserLocation } from '../types';
+import type { FloodOverlaySettings } from './FloodOverlayControls';
+import { hexFloodColor, isFloodedAtTime, riskAtTime, riskLabel, tierOpacity } from '../utils/risk';
 
 export interface CameraFocus {
   lng: number;
@@ -17,13 +19,17 @@ type Bounds = [number, number, number, number];
 
 interface GlobeProps {
   country: string;
+  hexagons: Hexagon[];
   floodBounds: Bounds | null;
+  overlay: FloodOverlaySettings;
   facilities: Facility[];
   userLocation: UserLocation | null;
   route: EvacRoute | null;
+  selectedHex: Hexagon | null;
+  onSelectHex: (h: Hexagon | null) => void;
   onSelectFacility: (f: Facility) => void;
   onMapClick: (lng: number, lat: number) => void;
-  time: number; // timeline fraction 0..1
+  time: number;
   focus: CameraFocus | null;
 }
 
@@ -47,26 +53,33 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#06121c' } },
     { id: 'satellite', type: 'raster', source: 'satellite' },
-    { id: 'scrim', type: 'background', paint: { 'background-color': '#04101a', 'background-opacity': 0.25 } },
+    { id: 'scrim', type: 'background', paint: { 'background-color': '#04101a', 'background-opacity': 0.2 } },
   ],
 };
 
 const CENTER: [number, number] = [90.36, 23.7];
+const TIERS = ['4h', '20h', '7d'] as const;
+const RIVER_TINT = 0.42;
 
 const iconUrl = (f: Facility) => `/m-${f.type}${f.at_risk ? '-risk' : ''}.png`;
 
-const TIERS = ['4h', '20h', '7d'] as const;
-
 export default function Globe({
-  country, floodBounds, facilities, userLocation, route, onSelectFacility, onMapClick, time, focus,
+  country, hexagons, floodBounds, overlay, facilities, userLocation, route,
+  selectedHex, onSelectHex, onSelectFacility, onMapClick, time, focus,
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
-  const cb = useRef({ onSelectFacility, onMapClick });
-  cb.current = { onSelectFacility, onMapClick };
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; hex: Hexagon; risk: number } | null>(null);
+  const cb = useRef({ onSelectHex, onSelectFacility, onMapClick });
+  cb.current = { onSelectHex, onSelectFacility, onMapClick };
 
-  // init map once
+  const floodedHexagons = useMemo(
+    () => hexagons.filter((h) => isFloodedAtTime(h, time)),
+    [hexagons, time],
+  );
+
   useEffect(() => {
     if (!containerRef.current) return;
     const map = new maplibregl.Map({
@@ -81,8 +94,8 @@ export default function Globe({
     });
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
-    const overlay = new MapboxOverlay({ interleaved: true, layers: [] });
-    map.addControl(overlay as unknown as maplibregl.IControl);
+    const deck = new MapboxOverlay({ interleaved: true, layers: [] });
+    map.addControl(deck as unknown as maplibregl.IControl);
 
     map.on('load', () => {
       if (!map.getLayer('labels')) {
@@ -90,16 +103,27 @@ export default function Globe({
       }
     });
 
-    // Tap a facility -> select it; tap empty map -> drop "you are here".
     map.on('click', (e) => {
-      const picked = overlay.pickObject({ x: e.point.x, y: e.point.y, radius: 8, layerIds: ['facilities'] });
-      if (picked?.object) cb.current.onSelectFacility(picked.object as Facility);
-      else cb.current.onMapClick(e.lngLat.lng, e.lngLat.lat);
+      const picked = deck.pickObject({
+        x: e.point.x,
+        y: e.point.y,
+        radius: 10,
+        layerIds: ['flood-hexagons', 'facilities'],
+      });
+      if (picked?.layer?.id === 'flood-hexagons' && picked.object) {
+        cb.current.onSelectHex(picked.object as Hexagon);
+        return;
+      }
+      if (picked?.layer?.id === 'facilities' && picked.object) {
+        cb.current.onSelectFacility(picked.object as Facility);
+        return;
+      }
+      cb.current.onSelectHex(null);
+      cb.current.onMapClick(e.lngLat.lng, e.lngLat.lat);
     });
-    map.getCanvas().style.cursor = 'crosshair';
 
     mapRef.current = map;
-    overlayRef.current = overlay;
+    overlayRef.current = deck;
     return () => {
       map.remove();
       mapRef.current = null;
@@ -107,23 +131,53 @@ export default function Globe({
     };
   }, []);
 
-  // rebuild deck layers on data / time change
   useEffect(() => {
-    const overlay = overlayRef.current;
-    if (!overlay) return;
+    const deck = overlayRef.current;
+    if (!deck) return;
 
-    // Smooth river/coast-following flood overlays (native ~1km raster), one per
-    // return-period tier, cross-faded by the timeline so water spreads over time.
-    const opacity = tierOpacity(time);
-    const floodLayers = floodBounds
+    const tierOp = tierOpacity(time);
+    const floodLayers = overlay.showRiverExtent && floodBounds
       ? TIERS.map((tier) => new BitmapLayer({
           id: `flood-${tier}`,
           image: api.floodImageUrl(country, tier),
           bounds: floodBounds,
-          opacity: opacity[tier],
+          opacity: tierOp[tier] * RIVER_TINT,
           desaturate: 0,
+          pickable: false,
         }))
       : [];
+
+    const hexLayer = overlay.showFloodCells && floodedHexagons.length
+      ? new H3HexagonLayer<Hexagon>({
+          id: 'flood-hexagons',
+          data: floodedHexagons,
+          pickable: true,
+          stroked: true,
+          filled: true,
+          extruded: false,
+          wireframe: false,
+          highPrecision: true,
+          getHexagon: (d) => d.h3_id,
+          getFillColor: (d) => {
+            const risk = riskAtTime(d, time);
+            const selected = selectedHex?.h3_id === d.h3_id;
+            const hovered = hoveredId === d.h3_id;
+            return hexFloodColor(risk, selected, hovered);
+          },
+          getLineColor: (d) => {
+            if (selectedHex?.h3_id === d.h3_id) return [255, 255, 255, 230];
+            if (hoveredId === d.h3_id) return [180, 230, 255, 200];
+            return [255, 255, 255, 60];
+          },
+          getLineWidth: (d) => (selectedHex?.h3_id === d.h3_id ? 2.5 : 1),
+          lineWidthUnits: 'pixels',
+          updateTriggers: {
+            getFillColor: [time, selectedHex?.h3_id, hoveredId],
+            getLineColor: [selectedHex?.h3_id, hoveredId],
+            getLineWidth: [selectedHex?.h3_id],
+          },
+        })
+      : null;
 
     const facLayer = new IconLayer<Facility>({
       id: 'facilities',
@@ -138,7 +192,7 @@ export default function Globe({
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const layers: any[] = [...floodLayers, facLayer];
+    const layers: any[] = [...floodLayers, hexLayer, facLayer].filter(Boolean);
 
     if (route) {
       layers.push(new PathLayer<EvacRoute>({
@@ -163,15 +217,56 @@ export default function Globe({
         sizeUnits: 'pixels',
       }));
     }
-    overlay.setProps({ layers });
-  }, [country, floodBounds, facilities, route, userLocation, time]);
 
-  // fly to focus
+    deck.setProps({
+      layers,
+      getCursor: (state) => {
+        const s = state as { layer?: { id?: string }; object?: unknown };
+        if (s.layer?.id === 'flood-hexagons' && s.object) return 'pointer';
+        if (s.layer?.id === 'facilities' && s.object) return 'pointer';
+        return 'crosshair';
+      },
+      onHover: (info) => {
+        if (info.layer?.id === 'flood-hexagons' && info.object) {
+          const hex = info.object as Hexagon;
+          setHoveredId(hex.h3_id);
+          setTooltip({
+            x: info.x,
+            y: info.y,
+            hex,
+            risk: riskAtTime(hex, time),
+          });
+        } else {
+          setHoveredId(null);
+          setTooltip(null);
+        }
+      },
+    });
+  }, [
+    country, floodBounds, overlay, floodedHexagons, facilities, route, userLocation,
+    time, selectedHex, hoveredId,
+  ]);
+
   useEffect(() => {
     if (focus && mapRef.current) {
       mapRef.current.flyTo({ center: [focus.lng, focus.lat], zoom: focus.zoom, duration: 1500, essential: true });
     }
   }, [focus]);
 
-  return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />;
+  return (
+    <>
+      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+      {tooltip && (
+        <div
+          className="map-tooltip"
+          style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}
+        >
+          <strong>{riskLabel(tooltip.risk)} flood</strong>
+          <span>{Math.round(tooltip.risk * 100)}% depth risk</span>
+          <span>{tooltip.hex.population_u5.toLocaleString()} children u5</span>
+          <span className="map-tooltip-hint">Click for evidence</span>
+        </div>
+      )}
+    </>
+  );
 }

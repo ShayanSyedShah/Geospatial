@@ -43,6 +43,9 @@ GEO_CRS = "EPSG:4326"
 OVERALL_UNCERTAINTY = 0.08
 DECISION_THRESHOLD = 0.6
 
+# A cell counts as "flooded" (exposed) above this interpolated risk.
+FLOOD_EXPOSURE_THRESHOLD = 0.05
+
 
 def worldpop_under5(prefix: str) -> list[str]:
     return [f"{prefix}_{s}_{a}_2020.tif" for s in ("f", "m") for a in (0, 1)]

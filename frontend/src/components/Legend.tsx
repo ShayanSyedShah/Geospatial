@@ -1,9 +1,13 @@
 import { WATER_LEGEND } from '../utils/risk';
 
-export default function Legend() {
+interface Props {
+  floodedCount: number;
+}
+
+export default function Legend({ floodedCount }: Props) {
   return (
     <div className="legend">
-      <div className="legend-title">Flood depth</div>
+      <div className="legend-title">Flood depth · {floodedCount} zones active</div>
       <div className="legend-bar">
         {WATER_LEGEND.slice().reverse().map((l) => (
           <span key={l.label} style={{ background: l.color }} title={l.label} />
@@ -11,6 +15,7 @@ export default function Legend() {
       </div>
       <div className="legend-bar-labels"><span>Shallow</span><span>Deepest</span></div>
       <div className="legend-markers">
+        <div className="lm"><span className="swatch flooded" /> Flooded cell (clickable)</div>
         <div className="lm"><img src="/m-clinic-risk.png" alt="" /> Clinic (at risk)</div>
         <div className="lm"><img src="/m-clinic.png" alt="" /> Clinic (safe)</div>
         <div className="lm"><img src="/m-school.png" alt="" /> School</div>

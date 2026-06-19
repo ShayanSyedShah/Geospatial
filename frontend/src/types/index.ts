@@ -74,6 +74,78 @@ export interface Stats {
   high_risk_hexagons: number;
 }
 
+export interface SupplyData {
+  country: string;
+  district: string | null;
+  items: { id: string; name: string; unit: string; stock: number }[];
+  districts: {
+    district: string; children_exposed: number; max_risk: number;
+    demand: number; allocated: number; coverage_pct: number;
+    distance_km: number; eta_h: number; reachable: boolean;
+  }[];
+  routes: { depot: string; district: string; distance_km: number; eta_h: number; status: 'open' | 'cut' }[];
+  efficiency: { naive: number; optimized: number; coverage_pct: number; unmet: number };
+}
+
+export interface Complaint {
+  id: string;
+  source: 'community' | 'field';
+  text: string;
+  district: string;
+  lat: number;
+  lng: number;
+  severity: 'urgent' | 'high' | 'med';
+  status: 'reported' | 'in_progress' | 'resolved';
+  category: string;
+  age_h: number;
+}
+
+export interface ComplaintsData {
+  country: string;
+  complaints: Complaint[];
+}
+
+export interface EducationData {
+  country: string;
+  district: string | null;
+  schools_total: number;
+  schools_hit: number;
+  children_out: number;
+  learning_centers: number;
+  recovery: { week: number; label: string; reopened_pct: number }[];
+  curriculum: { id: string; name: string; desc: string }[];
+}
+
+export interface ConnectColumn {
+  column: string;
+  mapped_to: string | null;
+  label: string | null;
+  confidence: number;
+  status: 'auto' | 'review';
+}
+
+export interface ConnectPlace {
+  input: string;
+  resolved: string;
+  pcode: string | null;
+  confidence: number;
+  method: 'exact' | 'fuzzy' | 'unresolved';
+  country: string;
+}
+
+export interface ConnectResult {
+  country: string;
+  columns: ConnectColumn[];
+  places: ConnectPlace[];
+  summary: {
+    columns_total: number;
+    columns_auto_mapped: number;
+    places_total: number;
+    places_resolved: number;
+    ready_to_join: boolean;
+  };
+}
+
 export interface Evidence {
   h3_id: string;
   risk: Record<string, number | null>;

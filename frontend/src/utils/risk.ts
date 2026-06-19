@@ -51,6 +51,14 @@ export const RISK_LEGEND = [
 // real hazard tiers (rp10 @4h, rp100 @20h, rp500 @7d): low-lying cells flood
 // first, rarer-but-severe extents fill in later.
 export const FORECAST_HOURS = 72;
+
+export const TIMELINE_TICKS = [
+  { f: 0, label: 'Now' },
+  { f: 1 / 3, label: '+24h · rp10' },
+  { f: 2 / 3, label: '+48h · rp100' },
+  { f: 1, label: '+72h · rp500' },
+] as const;
+
 const KEYS = [0, 1 / 3, 2 / 3, 1]; // fractions for [dry, rp10, rp100, rp500]
 
 /** Interpolated flood risk for a hexagon at timeline fraction f in [0,1]. */
@@ -72,6 +80,20 @@ function smoothstep(a: number, b: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** Fill colour for interactive H3 flood cells — visible but lets satellite show through. */
+export function hexFloodColor(risk: number, selected = false, hovered = false): RGBA {
+  if (risk <= 0.05) return [0, 0, 0, 0];
+  const [r, g, b] = waterColor(risk);
+  let a = 70 + risk * 100;
+  if (hovered) a += 35;
+  if (selected) a = Math.min(220, a + 50);
+  return [r, g, b, Math.round(Math.min(220, a))];
+}
+
+export function isFloodedAtTime(h: Hexagon, f: number): boolean {
+  return riskAtTime(h, f) > 0.05;
+}
+
 /** Opacity for each return-period overlay so water spreads as the timeline plays. */
 export function tierOpacity(f: number): Record<string, number> {
   return {
@@ -85,7 +107,8 @@ export function timeLabel(f: number): string {
   const h = Math.round(f * FORECAST_HOURS);
   if (h === 0) return 'Now';
   if (h < 24) return `+${h}h`;
-  return `+${(h / 24).toFixed(h % 24 === 0 ? 0 : 1)}d`;
+  const days = h / 24;
+  return `+${days % 1 === 0 ? days.toFixed(0) : days.toFixed(1)}d`;
 }
 
 /** Which return-period scenario the current time corresponds to. */
