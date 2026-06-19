@@ -15,6 +15,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from .beacon_report import build_report
 from .glofas import get_forecast
+from .feeds import ffwc as ffwc_feed, gdacs as gdacs_feed
 
 app = FastAPI(title="BEACON API", version="2.0.0",
               description="Cited flood action report for Sirajganj.")
@@ -41,6 +42,16 @@ async def report(payload: dict):
 async def glofas():
     """Live GloFAS v4 river-discharge forecast for the Jamuna at Sirajganj."""
     return await run_in_threadpool(get_forecast)
+
+
+@app.get("/api/ffwc")
+async def ffwc():
+    return await run_in_threadpool(ffwc_feed)
+
+
+@app.get("/api/gdacs")
+async def gdacs():
+    return await run_in_threadpool(gdacs_feed)
 
 
 @app.post("/api/geosight-export")

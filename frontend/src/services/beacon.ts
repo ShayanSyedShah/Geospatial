@@ -19,6 +19,10 @@ export const beacon = {
   buildings: () => j<FeatureCollection>(`${B}/buildings.geojson`),
   inundation: (levelM: number) => j<Feature>(`${B}/inundation/level_${Math.round(levelM * 100)}.geojson`),
   glofas: () => j<GlofasForecast>(`${API}/api/glofas`),
+  ffwc: () => j<{ stations: { name: string; danger: number; river: string }[]; source: string }>(`${API}/api/ffwc`),
+  gdacs: () => j<{ active: boolean; alerts: { level: string; name: string }[]; source: string }>(`${API}/api/gdacs`),
+  observed: () => j<Feature>(`${B}/observed.geojson`),
+  observedMeta: () => j<{ date: string; source: string; note: string }>(`${B}/observed.json`),
   reportUrl: () => `${API}/api/report`,
   geosightExportUrl: () => `${API}/api/geosight-export`,
 };

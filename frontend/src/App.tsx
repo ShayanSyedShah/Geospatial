@@ -6,6 +6,7 @@ import ImpactPanel from './components/ImpactPanel';
 import RankPanel from './components/RankPanel';
 import EvidencePopup from './components/EvidencePopup';
 import OpsHeader from './components/OpsHeader';
+import LiveFeeds from './components/LiveFeeds';
 import { beacon, nearestLevel, type GlofasForecast } from './services/beacon';
 import { rankZones } from './utils/rank';
 import { haversine } from './utils/geo';
@@ -21,6 +22,11 @@ export default function App() {
   const [buildings, setBuildings] = useState<FeatureCollection | null>(null);
   const [forecast, setForecast] = useState<GlofasForecast | null>(null);
   const [inundation, setInundation] = useState<Feature | null>(null);
+  const [observed, setObserved] = useState<Feature | null>(null);
+  const [observedMeta, setObservedMeta] = useState<{ date: string; source: string; note: string } | null>(null);
+  const [showObserved, setShowObserved] = useState(false);
+  const [ffwc, setFfwc] = useState<any>(null);
+  const [gdacs, setGdacs] = useState<any>(null);
   const [dayIndex, setDayIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [weights, setWeights] = useState<Weights>({ children: 0.45, flood: 0.35, access: 0.2 });
@@ -39,6 +45,10 @@ export default function App() {
         setDayIndex(pk >= 0 ? pk : f.iNow); // open on the forecast peak
       }
     }).catch((e) => setError(String(e)));
+    beacon.ffwc().then(setFfwc).catch(() => {});
+    beacon.gdacs().then(setGdacs).catch(() => {});
+    beacon.observed().then(setObserved).catch(() => {});
+    beacon.observedMeta().then(setObservedMeta).catch(() => {});
   }, []);
 
   // forecast discharge -> water level (indicative rating)
@@ -123,9 +133,17 @@ export default function App() {
   return (
     <div className="app">
       <BeaconMap buildings={buildings} zones={zones} facilities={facilities}
-        inundation={inundation} waterAltitudeM={level} onSelect={setSelection} />
+        inundation={inundation} observed={observed} showObserved={showObserved}
+        waterAltitudeM={level} onSelect={setSelection} />
 
       <OpsHeader forecast={forecast} stage={trigger.stage} level={level} />
+
+      {gdacs?.active && (
+        <div className="gdacs-banner">⚠ GDACS flood alert active for Bangladesh — {gdacs.alerts[0]?.level} · {gdacs.alerts[0]?.name}</div>
+      )}
+
+      <LiveFeeds glofas={forecast} ffwc={ffwc} gdacs={gdacs} observedMeta={observedMeta}
+        showObserved={showObserved} onToggleObserved={setShowObserved} />
 
       <div className="left-stack">
         <ImpactPanel trigger={trigger} impact={levelImpact} ranked={ranked} unicef={unicef}

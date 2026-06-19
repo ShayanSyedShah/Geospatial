@@ -10,6 +10,8 @@ interface Props {
   zones: FeatureCollection | null;
   facilities: FeatureCollection | null;
   inundation: Feature | null;
+  observed: Feature | null;
+  showObserved: boolean;
   waterAltitudeM: number;
   onSelect: (sel: Selection) => void;
 }
@@ -38,7 +40,7 @@ const STYLE: maplibregl.StyleSpecification = {
 
 const CENTER: [number, number] = [89.71, 24.45];
 
-export default function BeaconMap({ buildings, zones, facilities, inundation, waterAltitudeM, onSelect }: Props) {
+export default function BeaconMap({ buildings, zones, facilities, inundation, observed, showObserved, waterAltitudeM, onSelect }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const waterRef = useRef<WaterLayer | null>(null);
@@ -63,6 +65,15 @@ export default function BeaconMap({ buildings, zones, facilities, inundation, wa
         paint: { 'fill-color': '#1f9bff', 'fill-opacity': 0.5 } });
       map.addLayer({ id: 'flood-line', type: 'line', source: 'flood',
         paint: { 'line-color': '#bfe6ff', 'line-width': 1.4, 'line-opacity': 0.85 } });
+
+      // observed flood (Sentinel-1 / GFM) — distinct hatched style vs forecast
+      map.addSource('observed', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'observed-fill', type: 'fill', source: 'observed',
+        layout: { visibility: 'none' },
+        paint: { 'fill-color': '#ff9d3c', 'fill-opacity': 0.35 } });
+      map.addLayer({ id: 'observed-line', type: 'line', source: 'observed',
+        layout: { visibility: 'none' },
+        paint: { 'line-color': '#ffd166', 'line-width': 1.4, 'line-dasharray': [2, 1.5], 'line-opacity': 0.9 } });
 
       // zones (clickable)
       map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -140,6 +151,18 @@ export default function BeaconMap({ buildings, zones, facilities, inundation, wa
     (map.getSource('flood') as maplibregl.GeoJSONSource)?.setData(fc);
     waterRef.current?.setData(inundation, waterAltitudeM);
   }, [inundation, waterAltitudeM]);
+
+  // observed flood layer + toggle
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready.current) return;
+    if (observed) {
+      (map.getSource('observed') as maplibregl.GeoJSONSource)?.setData({ type: 'FeatureCollection', features: [observed] });
+    }
+    const vis = showObserved ? 'visible' : 'none';
+    if (map.getLayer('observed-fill')) map.setLayoutProperty('observed-fill', 'visibility', vis);
+    if (map.getLayer('observed-line')) map.setLayoutProperty('observed-line', 'visibility', vis);
+  }, [observed, showObserved]);
 
   return <div ref={ref} style={{ position: 'absolute', inset: 0 }} />;
 }
