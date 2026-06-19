@@ -85,3 +85,47 @@ class StatsResponse(BaseModel):
 class BriefRequest(BaseModel):
     h3_id: str
     time_horizon: str = "7d"
+
+
+# ---- Make Plan ------------------------------------------------------------
+class PlanRequest(BaseModel):
+    country: str = "Bangladesh"
+    district: Optional[str] = None
+    intensity: float = 1.0
+    depth_m: float = 1.8
+
+
+# ---- Connector ------------------------------------------------------------
+class ConnectRequest(BaseModel):
+    columns: List[str]
+    samples: Optional[Dict[str, List]] = None
+    places: Optional[List[str]] = None
+    country: str = "Bangladesh"
+
+
+# ---- Supply chain ---------------------------------------------------------
+class SupplyResponse(BaseModel):
+    country: str
+    district: Optional[str] = None
+    items: List[Dict]
+    districts: List[Dict]
+    routes: List[Dict]
+    efficiency: Dict
+
+
+# ---- Complaints -----------------------------------------------------------
+class ComplaintsResponse(BaseModel):
+    country: str
+    complaints: List[Dict]
+
+
+# ---- Education ------------------------------------------------------------
+class EducationResponse(BaseModel):
+    country: str
+    district: Optional[str] = None
+    schools_total: int
+    schools_hit: int
+    children_out: int
+    learning_centers: int
+    recovery: List[Dict]
+    curriculum: List[Dict]

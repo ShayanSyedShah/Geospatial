@@ -11,12 +11,14 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
-from . import config
+from . import config, connector, complaints, education, supply
 from .brief import build_brief
 from .data_pipeline import DataPipeline
+from .plan import build_plan
 from .models import (
-    BriefRequest, CountryResponse, EvidenceResponse, FacilityCollection,
-    FacilityResponse, HexagonCollection, HexagonResponse, RegionResponse, StatsResponse,
+    BriefRequest, ComplaintsResponse, ConnectRequest, CountryResponse, EducationResponse,
+    EvidenceResponse, FacilityCollection, FacilityResponse, HexagonCollection,
+    HexagonResponse, PlanRequest, RegionResponse, StatsResponse, SupplyResponse,
 )
 
 pipeline: DataPipeline | None = None
@@ -191,6 +193,43 @@ async def get_evidence(h3_id: str):
 @app.get("/api/stats", response_model=StatsResponse)
 async def get_stats(country: str = Query(config.DEFAULT_COUNTRY)):
     return StatsResponse(**_pipeline().stats(country))
+
+
+@app.get("/api/supply", response_model=SupplyResponse)
+async def get_supply(
+    country: str = Query(config.DEFAULT_COUNTRY),
+    district: Optional[str] = Query(None),
+):
+    return SupplyResponse(**supply.build_supply(_pipeline().df, country, district))
+
+
+@app.get("/api/complaints", response_model=ComplaintsResponse)
+async def get_complaints(country: str = Query(config.DEFAULT_COUNTRY)):
+    return ComplaintsResponse(**complaints.build_complaints(_pipeline().df, country))
+
+
+@app.get("/api/education", response_model=EducationResponse)
+async def get_education(
+    country: str = Query(config.DEFAULT_COUNTRY),
+    district: Optional[str] = Query(None),
+):
+    p = _pipeline()
+    return EducationResponse(**education.build_education(p.df, p.facilities, country, district))
+
+
+@app.post("/api/plan")
+async def post_plan(req: PlanRequest):
+    p = _pipeline()
+    md = await run_in_threadpool(build_plan, p.df, req.country, req.district,
+                                 req.intensity, req.depth_m)
+    return {"country": req.country, "district": req.district, "markdown": md}
+
+
+@app.post("/api/connect")
+async def post_connect(req: ConnectRequest):
+    """Auto-map a messy file's columns to UN variables and resolve its place
+    names to canonical district ids — the on-ramp to the UN data graph."""
+    return connector.connect(req.columns, req.samples, req.places, req.country)
 
 
 @app.post("/api/brief")

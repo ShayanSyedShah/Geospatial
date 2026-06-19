@@ -70,3 +70,21 @@ def test_stats():
     r = client.get("/api/stats?country=Uganda")
     assert r.status_code == 200
     assert r.json()["total_hexagons"] > 0
+
+
+def test_supply():
+    r = client.get("/api/supply?country=Bangladesh")
+    assert r.status_code == 200
+    assert r.json()["districts"]
+
+
+def test_complaints():
+    r = client.get("/api/complaints?country=Bangladesh")
+    assert r.status_code == 200
+    assert r.json()["complaints"]
+
+
+def test_education():
+    r = client.get("/api/education?country=Bangladesh")
+    assert r.status_code == 200
+    assert r.json()["schools_total"] >= 0
