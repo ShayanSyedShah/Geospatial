@@ -54,6 +54,90 @@ a { color: #6cc0ff; }
 .module-pad { padding: 22px 30px 60px; max-width: 1180px; }
 .mod-loading { color: var(--muted); }
 
+/* ---------- Reality 3D / Google Photorealistic Tiles ---------- */
+.reality3d {
+  position: fixed;
+  inset: 0 0 0 var(--rail-w);
+  background: #03070b;
+  overflow: hidden;
+}
+.reality3d-canvas {
+  position: absolute;
+  inset: 0;
+}
+.reality3d-topbar {
+  position: fixed;
+  top: 12px;
+  left: calc(var(--rail-w) + 14px);
+  right: 14px;
+  z-index: 10;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  background: rgba(5, 12, 18, .78);
+  backdrop-filter: blur(12px);
+}
+.reality3d-topbar div {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.reality3d-topbar b {
+  font-size: 15px;
+  letter-spacing: .2px;
+}
+.reality3d-topbar span,
+.reality3d-topbar a {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.reality3d-status {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 12;
+  width: min(420px, calc(100vw - 96px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 8px;
+  background: rgba(8, 17, 24, .9);
+  box-shadow: 0 14px 42px rgba(0,0,0,.45);
+}
+.reality3d-status b { font-size: 15px; }
+.reality3d-status span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.reality3d-actions {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+}
+.reality3d-actions button {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 8px;
+  background: rgba(7, 15, 22, .82);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+.reality3d-actions button:hover {
+  border-color: rgba(255,138,61,.65);
+  color: #ffb37a;
+}
+
 /* ---------- Top command bar ---------- */
 .topbar {
   position: fixed; top: 0; left: var(--rail-w); right: 0; height: var(--topbar-h); z-index: 60;
@@ -311,6 +395,22 @@ a { color: #6cc0ff; }
   padding: 9px 18px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.4);
 }
 .toast.error { border-color: var(--danger); color: #ffd7d4; }
+
+.physics-jump {
+  position: fixed; top: 66px; left: 50%; transform: translateX(-50%); z-index: 31;
+  display: inline-flex; align-items: center; gap: 8px; height: 34px;
+  padding: 0 13px; border-radius: 999px;
+  border: 1px solid rgba(103,232,249,.42);
+  background: rgba(8,22,36,.82); color: #dff8ff;
+  box-shadow: 0 8px 24px rgba(0,0,0,.34);
+  font-size: 12.5px; font-weight: 750; cursor: pointer;
+}
+.physics-jump:hover { background: rgba(12,38,58,.92); border-color: rgba(103,232,249,.75); }
+.physics-jump-dot {
+  width: 8px; height: 8px; border-radius: 999px; background: #67e8f9;
+  box-shadow: 0 0 0 4px rgba(103,232,249,.15), 0 0 16px rgba(103,232,249,.75);
+  flex: none;
+}
 
 /* ---------- Evidence panel ---------- */
 .evidence-panel {

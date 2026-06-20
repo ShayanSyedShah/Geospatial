@@ -7,8 +7,6 @@ interface Props {
   regions: Region[];
   district: string | null;
   onDistrictChange: (d: string | null) => void;
-  depthM: number;
-  leadHours: number;
   onConnect: () => void;
   onMakePlan: () => void;
 }
@@ -16,7 +14,7 @@ interface Props {
 /** Top command bar: brand + scenario context + the two hero actions. */
 export default function TopBar({
   countries, country, onCountryChange, regions, district, onDistrictChange,
-  depthM, leadHours, onConnect, onMakePlan,
+  onConnect, onMakePlan,
 }: Props) {
   const scope = district ?? country;
   return (
@@ -32,9 +30,9 @@ export default function TopBar({
       <div className="tb-context">
         <span className="tb-loc">{scope}, {country}</span>
         <span className="tb-dot">·</span>
-        <span className="tb-fore">Flood forecast +{leadHours}h</span>
+        <span className="tb-fore">3D geospatial base</span>
         <span className="tb-dot">·</span>
-        <span className="tb-depth">depth {depthM.toFixed(1)} m</span>
+        <span className="tb-depth">buildings on city zoom</span>
       </div>
 
       <div className="tb-controls">

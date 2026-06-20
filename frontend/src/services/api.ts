@@ -4,35 +4,62 @@ import type {
 } from '../types';
 
 interface FacilityCollection { country: string; count: number; at_risk: number; facilities: Facility[]; }
+export const STATIC_FLOOD_META: Record<string, { bounds: [number, number, number, number]; tiers: string[] }> = {
+  Bangladesh: { bounds: [87.87077967100234, 20.47098773012833, 92.83744633766881, 26.770987730128077], tiers: ['4h', '20h', '7d'] },
+  Uganda: { bounds: [29.42343299999999, -1.632590066666383, 35.14843299999976, 4.384076600000043], tiers: ['4h', '20h', '7d'] },
+};
 
-// In dev, Vite proxies /api -> localhost:8000. In prod, set VITE_API_URL.
+// In dev, Vite proxies /api -> localhost:8001. In prod, set VITE_API_URL.
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${BASE}${path}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
   return res.json() as Promise<T>;
 }
 
+async function getWithFallback<T>(path: string, fallbackPath?: string): Promise<T> {
+  try {
+    return await get<T>(path);
+  } catch (err) {
+    if (!fallbackPath) throw err;
+    const res = await fetch(fallbackPath, { cache: 'force-cache' });
+    if (!res.ok) throw err;
+    return res.json() as Promise<T>;
+  }
+}
+
+const staticData = {
+  countries: '/data/countries.json',
+  hexagons: (country: string) => `/data/hexagons_${country}.json`,
+  regions: (country: string) => `/data/regions_${country}.json`,
+};
+
 export const api = {
-  countries: () => get<Country[]>('/api/countries'),
+  countries: () => getWithFallback<Country[]>('/api/countries', staticData.countries),
 
   hexagons: (country: string, district?: string | null) =>
-    get<HexagonCollection>(
+    getWithFallback<HexagonCollection>(
       `/api/hexagons?country=${encodeURIComponent(country)}` +
+      (district && district !== 'All' ? `&district=${encodeURIComponent(district)}` : ''),
+      !district || district === 'All' ? staticData.hexagons(country) : undefined),
+
+  regions: (country: string) =>
+    getWithFallback<Region[]>(`/api/regions?country=${encodeURIComponent(country)}`, staticData.regions(country)),
+
+  facilities: (country: string, district?: string | null) =>
+    get<FacilityCollection>(
+      `/api/facilities?country=${encodeURIComponent(country)}` +
       (district && district !== 'All' ? `&district=${encodeURIComponent(district)}` : '')),
-
-  regions: (country: string) => get<Region[]>(`/api/regions?country=${encodeURIComponent(country)}`),
-
-  facilities: (country: string) =>
-    get<FacilityCollection>(`/api/facilities?country=${encodeURIComponent(country)}`),
 
   floodMeta: (country: string) =>
     get<{ bounds: [number, number, number, number]; tiers: string[] }>(
       `/api/flood-meta?country=${encodeURIComponent(country)}`),
 
   floodImageUrl: (country: string, tier: string) =>
-    `${BASE}/api/flood-image?country=${encodeURIComponent(country)}&tier=${tier}`,
+    STATIC_FLOOD_META[country] && !BASE
+      ? `/flood_${country}_${tier}.png`
+      : `${BASE}/api/flood-image?country=${encodeURIComponent(country)}&tier=${tier}`,
 
   stats: (country: string) => get<Stats>(`/api/stats?country=${encodeURIComponent(country)}`),
 

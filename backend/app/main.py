@@ -9,6 +9,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
 from . import config, connector, complaints, education, supply
@@ -46,6 +47,7 @@ app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_credentials=False,
     allow_methods=["*"], allow_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
 def _clean(v):

@@ -71,7 +71,7 @@ export default function SidePanel({
           </div>
           <div className="stat-row">
             <div className="stat sm"><b>{live.high}</b><span>high-risk zones</span></div>
-            <div className="stat sm"><b>{live.cells}</b><span>flooded cells</span></div>
+            <div className="stat sm"><b>{live.cells}</b><span>risk cells</span></div>
           </div>
         </div>
 
@@ -111,11 +111,15 @@ export default function SidePanel({
       <Section title="Map layers" icon="🗺" defaultOpen={false}>
         <label className="overlay-toggle">
           <input type="checkbox" checked={overlay.showFloodCells} onChange={(e) => onOverlayChange({ ...overlay, showFloodCells: e.target.checked })} />
-          Flood risk cells <em>{floodedCount} active</em>
+          Risk grid <em>{floodedCount} cells</em>
         </label>
         <label className="overlay-toggle">
           <input type="checkbox" checked={overlay.showRiverExtent} onChange={(e) => onOverlayChange({ ...overlay, showRiverExtent: e.target.checked })} />
-          River flood extent
+          Flood extent
+        </label>
+        <label className="overlay-toggle">
+          <input type="checkbox" checked={overlay.showPopulation} onChange={(e) => onOverlayChange({ ...overlay, showPopulation: e.target.checked })} />
+          Population density <em>NASA SEDAC</em>
         </label>
       </Section>
 
