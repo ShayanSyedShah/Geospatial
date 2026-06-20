@@ -2,6 +2,7 @@ export interface FloodOverlaySettings {
   showRiverExtent: boolean;
   showFloodCells: boolean;
   showPopulation: boolean;
+  showHumanTerrain: boolean;
 }
 
 interface Props {
@@ -18,6 +19,15 @@ export default function FloodOverlayControls({ settings, floodedCount, onChange 
   return (
     <div className="overlay-controls">
       <div className="overlay-controls-title">Bangladesh layers</div>
+      <label className="overlay-toggle">
+        <input
+          type="checkbox"
+          checked={settings.showHumanTerrain}
+          onChange={() => toggle('showHumanTerrain')}
+        />
+        <span>Human terrain</span>
+        <em>3D towers</em>
+      </label>
       <label className="overlay-toggle">
         <input
           type="checkbox"

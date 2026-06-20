@@ -29,7 +29,12 @@ export default function FloodModule() {
   const [route, setRoute] = useState<EvacRoute | null>(null);
   const [selectedFacility, setSelectedFacility] = useState<Facility | null>(null);
   const [selectedHex, setSelectedHex] = useState<Hexagon | null>(null);
-  const [overlay, setOverlay] = useState<FloodOverlaySettings>({ showRiverExtent: false, showFloodCells: false, showPopulation: false });
+  const [overlay, setOverlay] = useState<FloodOverlaySettings>({
+    showRiverExtent: false,
+    showFloodCells: false,
+    showPopulation: false,
+    showHumanTerrain: true,
+  });
   const [focus, setFocus] = useState<CameraFocus | null>(null);
   const [time] = useState(1);
   const [error, setError] = useState<string | null>(null);

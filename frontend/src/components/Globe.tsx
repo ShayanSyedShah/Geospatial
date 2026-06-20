@@ -107,6 +107,23 @@ const BANGLADESH_MAX_BOUNDS: [[number, number], [number, number]] = [[87.65, 20.
 const TIERS = ['4h', '20h', '7d'] as const;
 const NATIONAL_WATER_OPACITY = 0.38;
 const iconUrl = (f: Facility) => `/m-${f.type}${f.at_risk ? '-risk' : ''}.png`;
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+function humanTerrainScore(hex: Hexagon, risk: number) {
+  const clinicGap = hex.nearest_clinic_m == null ? 0.65 : clamp01(hex.nearest_clinic_m / 30000);
+  const serviceGap = clamp01((clinicGap + (hex.nearby_clinics ? 0 : 0.7) + (hex.nearby_schools ? 0 : 0.35)) / 2.05);
+  const uncertainty = clamp01(hex.uncertainty);
+  return clamp01((risk * 0.32) + (serviceGap * 0.34) + (uncertainty * 0.18) + (hex.population_u5 > 5000 ? 0.16 : 0.08));
+}
+
+function humanTerrainColor(score: number, confidence: number, selected: boolean, hovered: boolean): [number, number, number, number] {
+  const alpha = selected || hovered ? 235 : 196;
+  if (confidence < 0.55) return [170, 105, 255, alpha];
+  if (score > 0.72) return [255, 77, 92, alpha];
+  if (score > 0.52) return [255, 151, 64, alpha];
+  if (score > 0.34) return [255, 210, 90, alpha];
+  return [76, 196, 255, alpha];
+}
 
 export default function Globe({
   country, hexagons, floodBounds, overlay, facilities, userLocation, route,
@@ -116,13 +133,18 @@ export default function Globe({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; hex: Hexagon; risk: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; hex: Hexagon; risk: number; mode: 'flood' | 'human' } | null>(null);
   const cb = useRef({ onSelectHex, onSelectFacility, onMapClick });
   cb.current = { onSelectHex, onSelectFacility, onMapClick };
 
   const floodedHexagons = useMemo(
     () => hexagons.filter((h) => isFloodedAtTime(h, time)),
     [hexagons, time],
+  );
+
+  const maxHumanPopulation = useMemo(
+    () => Math.max(1, ...hexagons.map((h) => h.population_u5)),
+    [hexagons],
   );
 
   useEffect(() => {
@@ -198,9 +220,9 @@ export default function Globe({
         x: e.point.x,
         y: e.point.y,
         radius: 10,
-        layerIds: ['flood-hexagons', 'facilities'],
+        layerIds: ['human-terrain', 'flood-hexagons', 'facilities'],
       });
-      if (picked?.layer?.id === 'flood-hexagons' && picked.object) {
+      if ((picked?.layer?.id === 'human-terrain' || picked?.layer?.id === 'flood-hexagons') && picked.object) {
         cb.current.onSelectHex(picked.object as Hexagon);
         return;
       }
@@ -226,6 +248,54 @@ export default function Globe({
     if (!deck) return;
 
     const tierOp = tierOpacity(time);
+    const humanLayer = overlay.showHumanTerrain && hexagons.length
+      ? new H3HexagonLayer<Hexagon>({
+          id: 'human-terrain',
+          data: hexagons,
+          pickable: true,
+          stroked: true,
+          filled: true,
+          extruded: true,
+          wireframe: false,
+          highPrecision: false,
+          getHexagon: (d) => d.h3_id,
+          getElevation: (d) => {
+            const normalized = Math.log1p(d.population_u5) / Math.log1p(maxHumanPopulation);
+            return Math.max(80, normalized * 7600);
+          },
+          getFillColor: (d) => {
+            const risk = riskAtTime(d, time);
+            const confidence = 1 - clamp01(d.uncertainty);
+            return humanTerrainColor(
+              humanTerrainScore(d, risk),
+              confidence,
+              selectedHex?.h3_id === d.h3_id,
+              hoveredId === d.h3_id,
+            );
+          },
+          getLineColor: (d) => {
+            if (selectedHex?.h3_id === d.h3_id) return [255, 255, 255, 240];
+            if (hoveredId === d.h3_id) return [210, 244, 255, 220];
+            const confidence = 1 - clamp01(d.uncertainty);
+            return confidence < 0.55 ? [195, 145, 255, 180] : [255, 255, 255, 55];
+          },
+          getLineWidth: (d) => (selectedHex?.h3_id === d.h3_id ? 2.5 : 0.8),
+          lineWidthUnits: 'pixels',
+          material: {
+            ambient: 0.34,
+            diffuse: 0.62,
+            shininess: 28,
+            specularColor: [120, 160, 190],
+          },
+          updateTriggers: {
+            getElevation: [maxHumanPopulation],
+            getFillColor: [time, selectedHex?.h3_id, hoveredId],
+            getLineColor: [selectedHex?.h3_id, hoveredId],
+            getLineWidth: [selectedHex?.h3_id],
+          },
+        })
+      : null;
+
     const floodLayers = overlay.showRiverExtent && floodBounds
       ? TIERS.map((tier) => new BitmapLayer({
           id: `flood-${tier}`,
@@ -282,7 +352,7 @@ export default function Globe({
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const layers: any[] = [...floodLayers, hexLayer, facLayer].filter(Boolean);
+    const layers: any[] = [humanLayer, ...floodLayers, hexLayer, facLayer].filter(Boolean);
 
     if (route) {
       layers.push(new PathLayer<EvacRoute>({
@@ -312,12 +382,13 @@ export default function Globe({
       layers,
       getCursor: (state) => {
         const s = state as { layer?: { id?: string }; object?: unknown };
+        if (s.layer?.id === 'human-terrain' && s.object) return 'pointer';
         if (s.layer?.id === 'flood-hexagons' && s.object) return 'pointer';
         if (s.layer?.id === 'facilities' && s.object) return 'pointer';
         return 'crosshair';
       },
       onHover: (info) => {
-        if (info.layer?.id === 'flood-hexagons' && info.object) {
+        if ((info.layer?.id === 'human-terrain' || info.layer?.id === 'flood-hexagons') && info.object) {
           const hex = info.object as Hexagon;
           setHoveredId(hex.h3_id);
           setTooltip({
@@ -325,6 +396,7 @@ export default function Globe({
             y: info.y,
             hex,
             risk: riskAtTime(hex, time),
+            mode: info.layer.id === 'human-terrain' ? 'human' : 'flood',
           });
         } else {
           setHoveredId(null);
@@ -334,7 +406,7 @@ export default function Globe({
     });
   }, [
     country, floodBounds, overlay, floodedHexagons, facilities, route, userLocation,
-    time, selectedHex, hoveredId,
+    time, selectedHex, hoveredId, maxHumanPopulation,
   ]);
 
   useEffect(() => {
@@ -364,10 +436,23 @@ export default function Globe({
           className="map-tooltip"
           style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}
         >
-          <strong>{riskLabel(tooltip.risk)} flood</strong>
-          <span>{Math.round(tooltip.risk * 100)}% depth risk</span>
-          <span>{tooltip.hex.population_u5.toLocaleString()} children u5</span>
-          <span className="map-tooltip-hint">Click for evidence</span>
+          {tooltip.mode === 'human' ? (
+            <>
+              <strong>Human terrain</strong>
+              <span>{tooltip.hex.district}</span>
+              <span>{tooltip.hex.population_u5.toLocaleString()} children under 5</span>
+              <span>Vulnerability {Math.round(humanTerrainScore(tooltip.hex, tooltip.risk) * 100)}%</span>
+              <span>Evidence confidence {Math.round((1 - clamp01(tooltip.hex.uncertainty)) * 100)}%</span>
+              <span className="map-tooltip-hint">Click for evidence chain</span>
+            </>
+          ) : (
+            <>
+              <strong>{riskLabel(tooltip.risk)} flood</strong>
+              <span>{Math.round(tooltip.risk * 100)}% depth risk</span>
+              <span>{tooltip.hex.population_u5.toLocaleString()} children u5</span>
+              <span className="map-tooltip-hint">Click for evidence</span>
+            </>
+          )}
         </div>
       )}
     </>
