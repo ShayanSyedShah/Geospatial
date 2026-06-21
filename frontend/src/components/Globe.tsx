@@ -239,13 +239,13 @@ export default function Globe({
         x: e.point.x,
         y: e.point.y,
         radius: 10,
-        layerIds: ['human-settlements', 'flood-hexagons', 'clinic-roofs', 'school-roofs', 'clinic-buildings', 'school-buildings'],
+        layerIds: ['human-settlements', 'flood-hexagons', 'facility-rings', 'clinic-roofs', 'school-roofs', 'clinic-buildings', 'school-buildings'],
       });
       if ((picked?.layer?.id === 'human-settlements' || picked?.layer?.id === 'flood-hexagons') && picked.object) {
         cb.current.onSelectHex(picked.object as Hexagon);
         return;
       }
-      if (picked?.layer?.id?.includes('clinic') || picked?.layer?.id?.includes('school')) {
+      if (picked?.layer?.id === 'facility-rings' || picked?.layer?.id?.includes('clinic') || picked?.layer?.id?.includes('school')) {
         if (!picked.object) return;
         cb.current.onSelectFacility(picked.object as Facility);
         return;
@@ -369,18 +369,39 @@ export default function Globe({
     const clinicFacilities = facilities.filter((f) => f.type === 'clinic');
     const schoolFacilities = facilities.filter((f) => f.type === 'school');
 
+    const facilityRings = new ScatterplotLayer<Facility>({
+      id: 'facility-rings',
+      data: facilities,
+      pickable: true,
+      stroked: true,
+      filled: true,
+      radiusUnits: 'meters',
+      lineWidthUnits: 'pixels',
+      getPosition: (d) => [d.lng, d.lat],
+      getRadius: (d) => d.at_risk ? 118 : 92,
+      getFillColor: (d) => {
+        const c = facilityColor(d);
+        return [c[0], c[1], c[2], d.at_risk ? 48 : 34];
+      },
+      getLineColor: (d) => {
+        const c = facilityRoofColor(d);
+        return [c[0], c[1], c[2], d.at_risk ? 245 : 215];
+      },
+      getLineWidth: (d) => d.at_risk ? 3.2 : 2.2,
+    });
+
     const clinicBuildings = new ColumnLayer<Facility>({
       id: 'clinic-buildings',
       data: clinicFacilities,
       pickable: true,
       diskResolution: 8,
-      radius: 30,
+      radius: 48,
       extruded: true,
       stroked: true,
       filled: true,
       elevationScale: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getElevation: (d) => (d.at_risk ? 150 : 118),
+      getElevation: (d) => (d.at_risk ? 250 : 190),
       getFillColor: facilityColor,
       getLineColor: (d) => d.at_risk ? [255, 235, 235, 255] : [110, 215, 255, 230],
       getLineWidth: 1.2,
@@ -393,13 +414,13 @@ export default function Globe({
       data: clinicFacilities,
       pickable: true,
       diskResolution: 4,
-      radius: 15,
+      radius: 23,
       extruded: true,
       stroked: false,
       filled: true,
       elevationScale: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getElevation: (d) => (d.at_risk ? 205 : 168),
+      getElevation: (d) => (d.at_risk ? 325 : 255),
       getFillColor: facilityRoofColor,
       material: { ambient: 0.45, diffuse: 0.6, shininess: 70, specularColor: [255, 255, 255] },
     });
@@ -409,13 +430,13 @@ export default function Globe({
       data: schoolFacilities,
       pickable: true,
       diskResolution: 4,
-      radius: 32,
+      radius: 50,
       extruded: true,
       stroked: true,
       filled: true,
       elevationScale: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getElevation: (d) => (d.at_risk ? 125 : 92),
+      getElevation: (d) => (d.at_risk ? 210 : 155),
       getFillColor: facilityColor,
       getLineColor: (d) => d.at_risk ? [255, 230, 170, 245] : [255, 245, 190, 220],
       getLineWidth: 1.1,
@@ -428,13 +449,13 @@ export default function Globe({
       data: schoolFacilities,
       pickable: true,
       diskResolution: 3,
-      radius: 17,
+      radius: 25,
       extruded: true,
       stroked: false,
       filled: true,
       elevationScale: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getElevation: (d) => (d.at_risk ? 172 : 132),
+      getElevation: (d) => (d.at_risk ? 282 : 218),
       getFillColor: facilityRoofColor,
       material: { ambient: 0.45, diffuse: 0.58, shininess: 55, specularColor: [255, 255, 255] },
     });
@@ -445,6 +466,7 @@ export default function Globe({
       humanPickLayer,
       ...floodLayers,
       hexLayer,
+      facilityRings,
       clinicBuildings,
       schoolBuildings,
       clinicRoofs,
@@ -481,7 +503,7 @@ export default function Globe({
         const s = state as { layer?: { id?: string }; object?: unknown };
         if (s.layer?.id === 'human-settlements' && s.object) return 'pointer';
         if (s.layer?.id === 'flood-hexagons' && s.object) return 'pointer';
-        if ((s.layer?.id?.includes('clinic') || s.layer?.id?.includes('school')) && s.object) return 'pointer';
+        if ((s.layer?.id === 'facility-rings' || s.layer?.id?.includes('clinic') || s.layer?.id?.includes('school')) && s.object) return 'pointer';
         return 'crosshair';
       },
       onHover: (info) => {
