@@ -117,7 +117,7 @@ function humanTerrainScore(hex: Hexagon, risk: number) {
 }
 
 function humanTerrainColor(score: number, confidence: number, selected: boolean, hovered: boolean): [number, number, number, number] {
-  const alpha = selected || hovered ? 235 : 196;
+  const alpha = selected || hovered ? 225 : 142;
   if (confidence < 0.55) return [170, 105, 255, alpha];
   if (score > 0.72) return [255, 77, 92, alpha];
   if (score > 0.52) return [255, 151, 64, alpha];
@@ -139,6 +139,7 @@ export default function Globe({
   const overlayRef = useRef<MapboxOverlay | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; hex: Hexagon; risk: number; mode: 'flood' | 'human' } | null>(null);
+  const [mapZoom, setMapZoom] = useState(INITIAL_ZOOM);
   const cb = useRef({ onSelectHex, onSelectFacility, onMapClick });
   cb.current = { onSelectHex, onSelectFacility, onMapClick };
 
@@ -227,6 +228,10 @@ export default function Globe({
       }
     });
 
+    const updateZoom = () => setMapZoom(map.getZoom());
+    map.on('zoomend', updateZoom);
+    map.on('moveend', updateZoom);
+
     map.on('click', (e) => {
       const picked = deck.pickObject({
         x: e.point.x,
@@ -249,6 +254,8 @@ export default function Globe({
     mapRef.current = map;
     overlayRef.current = deck;
     return () => {
+      map.off('zoomend', updateZoom);
+      map.off('moveend', updateZoom);
       map.remove();
       mapRef.current = null;
       overlayRef.current = null;
@@ -260,10 +267,12 @@ export default function Globe({
     if (!deck) return;
 
     const tierOp = tierOpacity(time);
+    const showHumanAnalysis = overlay.showHumanTerrain && mapZoom < 10.7;
     const humanBaseLayer = overlay.showHumanTerrain && hexagons.length
       ? new H3HexagonLayer<Hexagon>({
           id: 'human-terrain-base',
           data: hexagons,
+          visible: showHumanAnalysis,
           pickable: false,
           stroked: false,
           filled: true,
@@ -273,7 +282,7 @@ export default function Globe({
           getFillColor: (d) => {
             const risk = riskAtTime(d, time);
             const score = humanTerrainScore(d, risk);
-            return score > 0.6 ? [255, 76, 88, 34] : [62, 197, 255, 22];
+            return score > 0.6 ? [255, 76, 88, 22] : [62, 197, 255, 14];
           },
           updateTriggers: { getFillColor: [time] },
         })
@@ -283,6 +292,7 @@ export default function Globe({
       ? new H3HexagonLayer<Hexagon>({
           id: 'human-terrain',
           data: hexagons,
+          visible: showHumanAnalysis,
           pickable: true,
           stroked: true,
           filled: true,
@@ -293,7 +303,7 @@ export default function Globe({
           getElevation: (d) => {
             const normalized = Math.log1p(d.population_u5) / Math.log1p(maxHumanPopulation);
             const priority = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
-            return Math.max(120, normalized * 11800 + priority * 2400);
+            return Math.max(70, normalized * 6800 + priority * 1100);
           },
           getFillColor: (d) => {
             const risk = riskAtTime(d, time);
@@ -336,6 +346,7 @@ export default function Globe({
       ? new ScatterplotLayer<Hexagon>({
           id: 'human-terrain-halos',
           data: humanHotspots,
+          visible: showHumanAnalysis,
           pickable: false,
           stroked: true,
           filled: true,
@@ -343,10 +354,10 @@ export default function Globe({
           radiusUnits: 'meters',
           lineWidthUnits: 'pixels',
           getPosition: (d) => [d.lng, d.lat],
-          getRadius: (d) => 1800 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 6200,
+          getRadius: (d) => 1300 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 4200,
           getFillColor: (d) => {
             const p = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
-            return p > 0.76 ? [255, 64, 85, 28] : p > 0.58 ? [255, 177, 69, 22] : [72, 203, 255, 18];
+            return p > 0.76 ? [255, 64, 85, 20] : p > 0.58 ? [255, 177, 69, 16] : [72, 203, 255, 12];
           },
           getLineColor: (d) => {
             const p = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
@@ -473,7 +484,7 @@ export default function Globe({
     });
   }, [
     country, floodBounds, overlay, floodedHexagons, facilities, route, userLocation,
-    time, selectedHex, hoveredId, maxHumanPopulation, humanHotspots,
+    time, selectedHex, hoveredId, maxHumanPopulation, humanHotspots, mapZoom,
   ]);
 
   useEffect(() => {
@@ -522,7 +533,7 @@ export default function Globe({
           )}
         </div>
       )}
-      {overlay.showHumanTerrain && (
+      {overlay.showHumanTerrain && mapZoom < 10.7 && (
         <div className="human-terrain-key">
           <div className="htk-title">Human Terrain</div>
           <div className="htk-row"><i className="cyan" /> height = children under 5</div>

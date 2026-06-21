@@ -111,7 +111,7 @@ export default function SidePanel({
       <Section title="Map layers" icon="🗺" defaultOpen={false}>
         <label className="overlay-toggle">
           <input type="checkbox" checked={overlay.showHumanTerrain} onChange={(e) => onOverlayChange({ ...overlay, showHumanTerrain: e.target.checked })} />
-          Human terrain <em>3D towers</em>
+          Human terrain <em>hides on zoom-in</em>
         </label>
         <label className="overlay-toggle">
           <input type="checkbox" checked={overlay.showFloodCells} onChange={(e) => onOverlayChange({ ...overlay, showFloodCells: e.target.checked })} />

@@ -26,7 +26,7 @@ export default function FloodOverlayControls({ settings, floodedCount, onChange 
           onChange={() => toggle('showHumanTerrain')}
         />
         <span>Human terrain</span>
-        <em>3D towers</em>
+        <em>hides on zoom-in</em>
       </label>
       <label className="overlay-toggle">
         <input
