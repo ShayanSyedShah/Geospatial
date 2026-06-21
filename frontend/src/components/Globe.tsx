@@ -110,13 +110,13 @@ const NATIONAL_WATER_OPACITY = 0.38;
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 function facilityColor(f: Facility): [number, number, number, number] {
-  if (f.type === 'clinic') return f.at_risk ? [255, 62, 76, 235] : [235, 248, 255, 230];
-  return f.at_risk ? [255, 146, 45, 235] : [255, 211, 92, 225];
+  if (f.type === 'clinic') return f.at_risk ? [220, 58, 70, 220] : [70, 185, 205, 205];
+  return f.at_risk ? [218, 126, 44, 220] : [222, 184, 82, 205];
 }
 
 function facilityRoofColor(f: Facility): [number, number, number, number] {
-  if (f.type === 'clinic') return f.at_risk ? [255, 210, 214, 245] : [255, 76, 92, 245];
-  return f.at_risk ? [255, 230, 150, 245] : [66, 148, 255, 235];
+  if (f.type === 'clinic') return f.at_risk ? [255, 176, 184, 235] : [230, 252, 255, 225];
+  return f.at_risk ? [255, 205, 126, 235] : [92, 156, 214, 225];
 }
 
 function humanTerrainScore(hex: Hexagon, risk: number) {
@@ -373,17 +373,17 @@ export default function Globe({
       id: 'clinic-buildings',
       data: clinicFacilities,
       pickable: true,
-      diskResolution: 4,
-      radius: 82,
+      diskResolution: 8,
+      radius: 30,
       extruded: true,
       stroked: true,
       filled: true,
       elevationScale: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getElevation: (d) => (d.at_risk ? 520 : 390),
+      getElevation: (d) => (d.at_risk ? 150 : 118),
       getFillColor: facilityColor,
       getLineColor: (d) => d.at_risk ? [255, 235, 235, 255] : [110, 215, 255, 230],
-      getLineWidth: 2,
+      getLineWidth: 1.2,
       lineWidthUnits: 'pixels',
       material: { ambient: 0.38, diffuse: 0.62, shininess: 42, specularColor: [255, 255, 255] },
     });
@@ -393,13 +393,13 @@ export default function Globe({
       data: clinicFacilities,
       pickable: true,
       diskResolution: 4,
-      radius: 44,
+      radius: 15,
       extruded: true,
       stroked: false,
       filled: true,
       elevationScale: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getElevation: (d) => (d.at_risk ? 760 : 610),
+      getElevation: (d) => (d.at_risk ? 205 : 168),
       getFillColor: facilityRoofColor,
       material: { ambient: 0.45, diffuse: 0.6, shininess: 70, specularColor: [255, 255, 255] },
     });
@@ -408,17 +408,17 @@ export default function Globe({
       id: 'school-buildings',
       data: schoolFacilities,
       pickable: true,
-      diskResolution: 6,
-      radius: 76,
+      diskResolution: 4,
+      radius: 32,
       extruded: true,
       stroked: true,
       filled: true,
       elevationScale: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getElevation: (d) => (d.at_risk ? 430 : 310),
+      getElevation: (d) => (d.at_risk ? 125 : 92),
       getFillColor: facilityColor,
       getLineColor: (d) => d.at_risk ? [255, 230, 170, 245] : [255, 245, 190, 220],
-      getLineWidth: 1.6,
+      getLineWidth: 1.1,
       lineWidthUnits: 'pixels',
       material: { ambient: 0.42, diffuse: 0.58, shininess: 35, specularColor: [255, 242, 190] },
     });
@@ -428,13 +428,13 @@ export default function Globe({
       data: schoolFacilities,
       pickable: true,
       diskResolution: 3,
-      radius: 45,
+      radius: 17,
       extruded: true,
       stroked: false,
       filled: true,
       elevationScale: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getElevation: (d) => (d.at_risk ? 610 : 485),
+      getElevation: (d) => (d.at_risk ? 172 : 132),
       getFillColor: facilityRoofColor,
       material: { ambient: 0.45, diffuse: 0.58, shininess: 55, specularColor: [255, 255, 255] },
     });
