@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
-import { BitmapLayer, IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { BitmapLayer, IconLayer, PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
 import { buildNeighborMask } from '../utils/neighborMask';
 import { api } from '../services/api';
@@ -156,9 +156,11 @@ export default function Globe({
   const humanHotspots = useMemo(
     () => [...hexagons]
       .sort((a, b) => humanPriority(b, riskAtTime(b, time), maxHumanPopulation) - humanPriority(a, riskAtTime(a, time), maxHumanPopulation))
-      .slice(0, 180),
+      .slice(0, 320),
     [hexagons, time, maxHumanPopulation],
   );
+
+  const humanLabels = useMemo(() => humanHotspots.slice(0, 28), [humanHotspots]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -237,9 +239,9 @@ export default function Globe({
         x: e.point.x,
         y: e.point.y,
         radius: 10,
-        layerIds: ['human-terrain', 'flood-hexagons', 'facilities'],
+        layerIds: ['human-settlements', 'flood-hexagons', 'facilities'],
       });
-      if ((picked?.layer?.id === 'human-terrain' || picked?.layer?.id === 'flood-hexagons') && picked.object) {
+      if ((picked?.layer?.id === 'human-settlements' || picked?.layer?.id === 'flood-hexagons') && picked.object) {
         cb.current.onSelectHex(picked.object as Hexagon);
         return;
       }
@@ -268,83 +270,9 @@ export default function Globe({
 
     const tierOp = tierOpacity(time);
     const showHumanAnalysis = overlay.showHumanTerrain && mapZoom < 10.7;
-    const humanBaseLayer = overlay.showHumanTerrain && hexagons.length
-      ? new H3HexagonLayer<Hexagon>({
-          id: 'human-terrain-base',
-          data: hexagons,
-          visible: showHumanAnalysis,
-          pickable: false,
-          stroked: false,
-          filled: true,
-          extruded: false,
-          highPrecision: false,
-          getHexagon: (d) => d.h3_id,
-          getFillColor: (d) => {
-            const risk = riskAtTime(d, time);
-            const score = humanTerrainScore(d, risk);
-            return score > 0.6 ? [255, 76, 88, 22] : [62, 197, 255, 14];
-          },
-          updateTriggers: { getFillColor: [time] },
-        })
-      : null;
-
-    const humanLayer = overlay.showHumanTerrain && hexagons.length
-      ? new H3HexagonLayer<Hexagon>({
-          id: 'human-terrain',
-          data: hexagons,
-          visible: showHumanAnalysis,
-          pickable: true,
-          stroked: true,
-          filled: true,
-          extruded: true,
-          wireframe: false,
-          highPrecision: false,
-          getHexagon: (d) => d.h3_id,
-          getElevation: (d) => {
-            const normalized = Math.log1p(d.population_u5) / Math.log1p(maxHumanPopulation);
-            const priority = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
-            return Math.max(70, normalized * 6800 + priority * 1100);
-          },
-          getFillColor: (d) => {
-            const risk = riskAtTime(d, time);
-            const confidence = 1 - clamp01(d.uncertainty);
-            return humanTerrainColor(
-              humanTerrainScore(d, risk),
-              confidence,
-              selectedHex?.h3_id === d.h3_id,
-              hoveredId === d.h3_id,
-            );
-          },
-          getLineColor: (d) => {
-            if (selectedHex?.h3_id === d.h3_id) return [255, 255, 255, 240];
-            if (hoveredId === d.h3_id) return [210, 244, 255, 220];
-            const confidence = 1 - clamp01(d.uncertainty);
-            return confidence < 0.55 ? [195, 145, 255, 180] : [255, 255, 255, 55];
-          },
-          getLineWidth: (d) => {
-            if (selectedHex?.h3_id === d.h3_id) return 3;
-            if (hoveredId === d.h3_id) return 2;
-            return humanPriority(d, riskAtTime(d, time), maxHumanPopulation) > 0.72 ? 1.25 : 0.45;
-          },
-          lineWidthUnits: 'pixels',
-          material: {
-            ambient: 0.34,
-            diffuse: 0.62,
-            shininess: 28,
-            specularColor: [120, 160, 190],
-          },
-          updateTriggers: {
-            getElevation: [maxHumanPopulation, time],
-            getFillColor: [time, selectedHex?.h3_id, hoveredId],
-            getLineColor: [selectedHex?.h3_id, hoveredId, time],
-            getLineWidth: [selectedHex?.h3_id, hoveredId, time, maxHumanPopulation],
-          },
-        })
-      : null;
-
-    const humanHaloLayer = overlay.showHumanTerrain && humanHotspots.length
+    const humanGlowLayer = overlay.showHumanTerrain && humanHotspots.length
       ? new ScatterplotLayer<Hexagon>({
-          id: 'human-terrain-halos',
+          id: 'human-glow',
           data: humanHotspots,
           visible: showHumanAnalysis,
           pickable: false,
@@ -354,11 +282,76 @@ export default function Globe({
           radiusUnits: 'meters',
           lineWidthUnits: 'pixels',
           getPosition: (d) => [d.lng, d.lat],
-          getRadius: (d) => 1300 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 4200,
+          getRadius: (d) => 2600 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 8200,
           getFillColor: (d) => {
-            const p = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
-            return p > 0.76 ? [255, 64, 85, 20] : p > 0.58 ? [255, 177, 69, 16] : [72, 203, 255, 12];
+            const risk = riskAtTime(d, time);
+            const confidence = 1 - clamp01(d.uncertainty);
+            const c = humanTerrainColor(humanTerrainScore(d, risk), confidence, false, false);
+            return [c[0], c[1], c[2], 24];
           },
+          getLineColor: [0, 0, 0, 0],
+          getLineWidth: 0,
+          updateTriggers: {
+            getRadius: [time, maxHumanPopulation],
+            getFillColor: [time, maxHumanPopulation],
+          },
+        })
+      : null;
+
+    const humanSettleLayer = overlay.showHumanTerrain && humanHotspots.length
+      ? new ScatterplotLayer<Hexagon>({
+          id: 'human-settlements',
+          data: humanHotspots,
+          visible: showHumanAnalysis,
+          pickable: true,
+          stroked: true,
+          filled: true,
+          billboard: false,
+          radiusUnits: 'meters',
+          lineWidthUnits: 'pixels',
+          getPosition: (d) => [d.lng, d.lat],
+          getRadius: (d) => 650 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 2700,
+          getFillColor: (d) => {
+            const risk = riskAtTime(d, time);
+            const confidence = 1 - clamp01(d.uncertainty);
+            const color = humanTerrainColor(
+              humanTerrainScore(d, risk),
+              confidence,
+              selectedHex?.h3_id === d.h3_id,
+              hoveredId === d.h3_id,
+            );
+            return [color[0], color[1], color[2], selectedHex?.h3_id === d.h3_id || hoveredId === d.h3_id ? 210 : 126];
+          },
+          getLineColor: (d) => {
+            if (selectedHex?.h3_id === d.h3_id) return [255, 255, 255, 240];
+            if (hoveredId === d.h3_id) return [210, 244, 255, 220];
+            const confidence = 1 - clamp01(d.uncertainty);
+            return confidence < 0.55 ? [195, 145, 255, 220] : [255, 255, 255, 130];
+          },
+          getLineWidth: (d) => humanPriority(d, riskAtTime(d, time), maxHumanPopulation) > 0.72 ? 2.8 : 1.25,
+          updateTriggers: {
+            getRadius: [maxHumanPopulation, time],
+            getFillColor: [time, selectedHex?.h3_id, hoveredId],
+            getLineColor: [selectedHex?.h3_id, hoveredId, time],
+            getLineWidth: [time, maxHumanPopulation],
+          },
+        })
+      : null;
+
+    const humanRingLayer = overlay.showHumanTerrain && humanHotspots.length
+      ? new ScatterplotLayer<Hexagon>({
+          id: 'human-priority-rings',
+          data: humanHotspots.slice(0, 90),
+          visible: showHumanAnalysis,
+          pickable: false,
+          stroked: true,
+          filled: false,
+          billboard: false,
+          radiusUnits: 'meters',
+          lineWidthUnits: 'pixels',
+          getPosition: (d) => [d.lng, d.lat],
+          getRadius: (d) => 1300 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 4200,
+          getFillColor: [0, 0, 0, 0],
           getLineColor: (d) => {
             const p = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
             if (1 - clamp01(d.uncertainty) < 0.55) return [190, 120, 255, 180];
@@ -371,6 +364,27 @@ export default function Globe({
             getLineColor: [time, maxHumanPopulation],
             getLineWidth: [time, maxHumanPopulation],
           },
+        })
+      : null;
+
+    const humanLabelLayer = overlay.showHumanTerrain && humanLabels.length
+      ? new TextLayer<Hexagon>({
+          id: 'human-place-labels',
+          data: humanLabels,
+          visible: showHumanAnalysis,
+          pickable: false,
+          getPosition: (d) => [d.lng, d.lat],
+          getText: (d) => d.district,
+          getSize: (d) => 11 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 7,
+          getColor: [235, 247, 255, 230],
+          getAngle: 0,
+          getTextAnchor: 'middle',
+          getAlignmentBaseline: 'center',
+          billboard: true,
+          background: true,
+          getBackgroundColor: [5, 13, 20, 150],
+          backgroundPadding: [5, 3],
+          updateTriggers: { getSize: [time, maxHumanPopulation] },
         })
       : null;
 
@@ -430,7 +444,7 @@ export default function Globe({
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const layers: any[] = [humanBaseLayer, humanHaloLayer, humanLayer, ...floodLayers, hexLayer, facLayer].filter(Boolean);
+    const layers: any[] = [humanGlowLayer, humanRingLayer, humanSettleLayer, humanLabelLayer, ...floodLayers, hexLayer, facLayer].filter(Boolean);
 
     if (route) {
       layers.push(new PathLayer<EvacRoute>({
@@ -460,13 +474,13 @@ export default function Globe({
       layers,
       getCursor: (state) => {
         const s = state as { layer?: { id?: string }; object?: unknown };
-        if (s.layer?.id === 'human-terrain' && s.object) return 'pointer';
+        if (s.layer?.id === 'human-settlements' && s.object) return 'pointer';
         if (s.layer?.id === 'flood-hexagons' && s.object) return 'pointer';
         if (s.layer?.id === 'facilities' && s.object) return 'pointer';
         return 'crosshair';
       },
       onHover: (info) => {
-        if ((info.layer?.id === 'human-terrain' || info.layer?.id === 'flood-hexagons') && info.object) {
+        if ((info.layer?.id === 'human-settlements' || info.layer?.id === 'flood-hexagons') && info.object) {
           const hex = info.object as Hexagon;
           setHoveredId(hex.h3_id);
           setTooltip({
@@ -474,7 +488,7 @@ export default function Globe({
             y: info.y,
             hex,
             risk: riskAtTime(hex, time),
-            mode: info.layer.id === 'human-terrain' ? 'human' : 'flood',
+            mode: info.layer.id === 'human-settlements' ? 'human' : 'flood',
           });
         } else {
           setHoveredId(null);
@@ -536,9 +550,9 @@ export default function Globe({
       {overlay.showHumanTerrain && mapZoom < 10.7 && (
         <div className="human-terrain-key">
           <div className="htk-title">Human Terrain</div>
-          <div className="htk-row"><i className="cyan" /> height = children under 5</div>
+          <div className="htk-row"><i className="cyan" /> glow = settlement population cluster</div>
           <div className="htk-row"><i className="amber" /> color = compound vulnerability</div>
-          <div className="htk-row"><i className="red" /> halo = priority settlement cluster</div>
+          <div className="htk-row"><i className="red" /> ring = highest-priority places</div>
           <div className="htk-row"><i className="violet" /> purple = weaker evidence confidence</div>
         </div>
       )}
