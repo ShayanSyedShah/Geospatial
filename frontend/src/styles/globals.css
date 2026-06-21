@@ -304,6 +304,47 @@ a { color: #6cc0ff; }
 .map-tooltip span { color: var(--muted); }
 .map-tooltip-hint { color: #6cc0ff !important; font-size: 10.5px; margin-top: 2px; }
 
+.human-terrain-key {
+  position: fixed;
+  right: 18px;
+  bottom: 78px;
+  z-index: 24;
+  width: 248px;
+  padding: 12px 13px;
+  border: 1px solid rgba(147, 205, 255, .24);
+  border-radius: 10px;
+  background: rgba(7, 17, 25, .86);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 32px rgba(0,0,0,.42);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.htk-title {
+  color: #e8f7ff;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.htk-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+.htk-row i {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  flex: none;
+  box-shadow: 0 0 12px currentColor;
+}
+.htk-row i.cyan { background: #4cc4ff; color: #4cc4ff; }
+.htk-row i.amber { background: #ffd25a; color: #ffd25a; }
+.htk-row i.red { background: #ff4d5c; color: #ff4d5c; }
+.htk-row i.violet { background: #aa69ff; color: #aa69ff; }
+
 /* location / evacuation in side panel */
 .tap-hint { font-size: 11.5px; color: var(--muted); margin: 7px 0 0; }
 .evac-card { margin-top: 10px; background: #0e2233; border: 1px solid rgba(0,229,255,.3); border-radius: 10px; padding: 11px 12px; }

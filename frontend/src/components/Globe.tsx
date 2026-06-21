@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
-import { BitmapLayer, IconLayer, PathLayer } from '@deck.gl/layers';
+import { BitmapLayer, IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
 import { buildNeighborMask } from '../utils/neighborMask';
 import { api } from '../services/api';
@@ -125,6 +125,11 @@ function humanTerrainColor(score: number, confidence: number, selected: boolean,
   return [76, 196, 255, alpha];
 }
 
+function humanPriority(hex: Hexagon, risk: number, maxPopulation: number) {
+  const pop = Math.log1p(hex.population_u5) / Math.log1p(maxPopulation);
+  return clamp01((pop * 0.58) + (humanTerrainScore(hex, risk) * 0.42));
+}
+
 export default function Globe({
   country, hexagons, floodBounds, overlay, facilities, userLocation, route,
   selectedHex, onSelectHex, onSelectFacility, onMapClick, time, focus,
@@ -145,6 +150,13 @@ export default function Globe({
   const maxHumanPopulation = useMemo(
     () => Math.max(1, ...hexagons.map((h) => h.population_u5)),
     [hexagons],
+  );
+
+  const humanHotspots = useMemo(
+    () => [...hexagons]
+      .sort((a, b) => humanPriority(b, riskAtTime(b, time), maxHumanPopulation) - humanPriority(a, riskAtTime(a, time), maxHumanPopulation))
+      .slice(0, 180),
+    [hexagons, time, maxHumanPopulation],
   );
 
   useEffect(() => {
@@ -248,6 +260,25 @@ export default function Globe({
     if (!deck) return;
 
     const tierOp = tierOpacity(time);
+    const humanBaseLayer = overlay.showHumanTerrain && hexagons.length
+      ? new H3HexagonLayer<Hexagon>({
+          id: 'human-terrain-base',
+          data: hexagons,
+          pickable: false,
+          stroked: false,
+          filled: true,
+          extruded: false,
+          highPrecision: false,
+          getHexagon: (d) => d.h3_id,
+          getFillColor: (d) => {
+            const risk = riskAtTime(d, time);
+            const score = humanTerrainScore(d, risk);
+            return score > 0.6 ? [255, 76, 88, 34] : [62, 197, 255, 22];
+          },
+          updateTriggers: { getFillColor: [time] },
+        })
+      : null;
+
     const humanLayer = overlay.showHumanTerrain && hexagons.length
       ? new H3HexagonLayer<Hexagon>({
           id: 'human-terrain',
@@ -261,7 +292,8 @@ export default function Globe({
           getHexagon: (d) => d.h3_id,
           getElevation: (d) => {
             const normalized = Math.log1p(d.population_u5) / Math.log1p(maxHumanPopulation);
-            return Math.max(80, normalized * 7600);
+            const priority = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
+            return Math.max(120, normalized * 11800 + priority * 2400);
           },
           getFillColor: (d) => {
             const risk = riskAtTime(d, time);
@@ -279,7 +311,11 @@ export default function Globe({
             const confidence = 1 - clamp01(d.uncertainty);
             return confidence < 0.55 ? [195, 145, 255, 180] : [255, 255, 255, 55];
           },
-          getLineWidth: (d) => (selectedHex?.h3_id === d.h3_id ? 2.5 : 0.8),
+          getLineWidth: (d) => {
+            if (selectedHex?.h3_id === d.h3_id) return 3;
+            if (hoveredId === d.h3_id) return 2;
+            return humanPriority(d, riskAtTime(d, time), maxHumanPopulation) > 0.72 ? 1.25 : 0.45;
+          },
           lineWidthUnits: 'pixels',
           material: {
             ambient: 0.34,
@@ -288,10 +324,41 @@ export default function Globe({
             specularColor: [120, 160, 190],
           },
           updateTriggers: {
-            getElevation: [maxHumanPopulation],
+            getElevation: [maxHumanPopulation, time],
             getFillColor: [time, selectedHex?.h3_id, hoveredId],
-            getLineColor: [selectedHex?.h3_id, hoveredId],
-            getLineWidth: [selectedHex?.h3_id],
+            getLineColor: [selectedHex?.h3_id, hoveredId, time],
+            getLineWidth: [selectedHex?.h3_id, hoveredId, time, maxHumanPopulation],
+          },
+        })
+      : null;
+
+    const humanHaloLayer = overlay.showHumanTerrain && humanHotspots.length
+      ? new ScatterplotLayer<Hexagon>({
+          id: 'human-terrain-halos',
+          data: humanHotspots,
+          pickable: false,
+          stroked: true,
+          filled: true,
+          billboard: false,
+          radiusUnits: 'meters',
+          lineWidthUnits: 'pixels',
+          getPosition: (d) => [d.lng, d.lat],
+          getRadius: (d) => 1800 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 6200,
+          getFillColor: (d) => {
+            const p = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
+            return p > 0.76 ? [255, 64, 85, 28] : p > 0.58 ? [255, 177, 69, 22] : [72, 203, 255, 18];
+          },
+          getLineColor: (d) => {
+            const p = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
+            if (1 - clamp01(d.uncertainty) < 0.55) return [190, 120, 255, 180];
+            return p > 0.76 ? [255, 86, 102, 210] : p > 0.58 ? [255, 196, 90, 190] : [91, 213, 255, 160];
+          },
+          getLineWidth: (d) => 1.2 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 2.2,
+          updateTriggers: {
+            getRadius: [time, maxHumanPopulation],
+            getFillColor: [time, maxHumanPopulation],
+            getLineColor: [time, maxHumanPopulation],
+            getLineWidth: [time, maxHumanPopulation],
           },
         })
       : null;
@@ -352,7 +419,7 @@ export default function Globe({
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const layers: any[] = [humanLayer, ...floodLayers, hexLayer, facLayer].filter(Boolean);
+    const layers: any[] = [humanBaseLayer, humanHaloLayer, humanLayer, ...floodLayers, hexLayer, facLayer].filter(Boolean);
 
     if (route) {
       layers.push(new PathLayer<EvacRoute>({
@@ -406,7 +473,7 @@ export default function Globe({
     });
   }, [
     country, floodBounds, overlay, floodedHexagons, facilities, route, userLocation,
-    time, selectedHex, hoveredId, maxHumanPopulation,
+    time, selectedHex, hoveredId, maxHumanPopulation, humanHotspots,
   ]);
 
   useEffect(() => {
@@ -453,6 +520,15 @@ export default function Globe({
               <span className="map-tooltip-hint">Click for evidence</span>
             </>
           )}
+        </div>
+      )}
+      {overlay.showHumanTerrain && (
+        <div className="human-terrain-key">
+          <div className="htk-title">Human Terrain</div>
+          <div className="htk-row"><i className="cyan" /> height = children under 5</div>
+          <div className="htk-row"><i className="amber" /> color = compound vulnerability</div>
+          <div className="htk-row"><i className="red" /> halo = priority settlement cluster</div>
+          <div className="htk-row"><i className="violet" /> purple = weaker evidence confidence</div>
         </div>
       )}
     </>
