@@ -582,8 +582,28 @@ export default function Globe({
           )}
         </div>
       )}
-      {(overlay.showPopulation || (overlay.showHumanTerrain && mapZoom < 10.7)) && (
+      {(overlay.showPopulation || overlay.showFloodCells || overlay.showRiverExtent || (overlay.showHumanTerrain && mapZoom < 10.7)) && (
         <div className="map-legend-stack">
+          {overlay.showFloodCells && (
+            <div className="human-terrain-key">
+              <div className="htk-title">Risk grid</div>
+              <div className="htk-row htk-sub">H3 cells · flood-depth risk this hour</div>
+              <div className="htk-row"><i style={{ background: '#7acdff', color: '#7acdff' }} /> minimal — shallow water</div>
+              <div className="htk-row"><i style={{ background: '#4eaff6', color: '#4eaff6' }} /> low</div>
+              <div className="htk-row"><i style={{ background: '#2c84e8', color: '#2c84e8' }} /> moderate</div>
+              <div className="htk-row"><i style={{ background: '#1e60cd', color: '#1e60cd' }} /> high</div>
+              <div className="htk-row"><i style={{ background: '#163a96', color: '#163a96' }} /> very high — deepest</div>
+            </div>
+          )}
+          {overlay.showRiverExtent && (
+            <div className="human-terrain-key">
+              <div className="htk-title">Flood extent</div>
+              <div className="htk-row htk-sub">GloFAS inundation · rp10 → rp100 → rp500</div>
+              <div className="htk-row"><i style={{ background: '#7acdff', color: '#7acdff' }} /> shallow / fringe inundation</div>
+              <div className="htk-row"><i style={{ background: '#2c84e8', color: '#2c84e8' }} /> moderate depth</div>
+              <div className="htk-row"><i style={{ background: '#163a96', color: '#163a96' }} /> deepest / persistent water</div>
+            </div>
+          )}
           {overlay.showPopulation && (
             <div className="human-terrain-key">
               <div className="htk-title">Population density</div>
