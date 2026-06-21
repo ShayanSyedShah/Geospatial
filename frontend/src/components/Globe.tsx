@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
-import { BitmapLayer, IconLayer, PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
+import { BitmapLayer, IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
+import { HeatmapLayer } from '@deck.gl/aggregation-layers';
 import { buildNeighborMask } from '../utils/neighborMask';
 import { api } from '../services/api';
 import type { EvacRoute, Facility, Hexagon, UserLocation } from '../types';
@@ -116,15 +117,6 @@ function humanTerrainScore(hex: Hexagon, risk: number) {
   return clamp01((risk * 0.32) + (serviceGap * 0.34) + (uncertainty * 0.18) + (hex.population_u5 > 5000 ? 0.16 : 0.08));
 }
 
-function humanTerrainColor(score: number, confidence: number, selected: boolean, hovered: boolean): [number, number, number, number] {
-  const alpha = selected || hovered ? 225 : 142;
-  if (confidence < 0.55) return [170, 105, 255, alpha];
-  if (score > 0.72) return [255, 77, 92, alpha];
-  if (score > 0.52) return [255, 151, 64, alpha];
-  if (score > 0.34) return [255, 210, 90, alpha];
-  return [76, 196, 255, alpha];
-}
-
 function humanPriority(hex: Hexagon, risk: number, maxPopulation: number) {
   const pop = Math.log1p(hex.population_u5) / Math.log1p(maxPopulation);
   return clamp01((pop * 0.58) + (humanTerrainScore(hex, risk) * 0.42));
@@ -160,7 +152,6 @@ export default function Globe({
     [hexagons, time, maxHumanPopulation],
   );
 
-  const humanLabels = useMemo(() => humanHotspots.slice(0, 28), [humanHotspots]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -270,121 +261,55 @@ export default function Globe({
 
     const tierOp = tierOpacity(time);
     const showHumanAnalysis = overlay.showHumanTerrain && mapZoom < 10.7;
-    const humanGlowLayer = overlay.showHumanTerrain && humanHotspots.length
-      ? new ScatterplotLayer<Hexagon>({
-          id: 'human-glow',
-          data: humanHotspots,
+    // Hero "Human Terrain" visual: a smooth GPU kernel-density heat field of where
+    // the most vulnerable under-5 population concentrates — continuous glow, no
+    // blocky towers/dots. Weight = population × compound vulnerability.
+    const humanHeatLayer = overlay.showHumanTerrain && hexagons.length
+      ? new HeatmapLayer<Hexagon>({
+          id: 'human-heat',
+          data: hexagons,
           visible: showHumanAnalysis,
           pickable: false,
-          stroked: true,
-          filled: true,
-          billboard: false,
-          radiusUnits: 'meters',
-          lineWidthUnits: 'pixels',
           getPosition: (d) => [d.lng, d.lat],
-          getRadius: (d) => 2600 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 8200,
-          getFillColor: (d) => {
-            const risk = riskAtTime(d, time);
-            const confidence = 1 - clamp01(d.uncertainty);
-            const c = humanTerrainColor(humanTerrainScore(d, risk), confidence, false, false);
-            return [c[0], c[1], c[2], 24];
-          },
-          getLineColor: [0, 0, 0, 0],
-          getLineWidth: 0,
-          updateTriggers: {
-            getRadius: [time, maxHumanPopulation],
-            getFillColor: [time, maxHumanPopulation],
-          },
+          getWeight: (d) => Math.round(humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 100),
+          aggregation: 'SUM',
+          radiusPixels: 38,
+          intensity: 0.9,
+          threshold: 0.06,
+          opacity: 0.8,
+          // cinematic magma-style ramp: deep violet → magenta → ember → hot white
+          colorRange: [
+            [22, 16, 64],
+            [86, 24, 134],
+            [180, 44, 120],
+            [240, 92, 70],
+            [252, 176, 64],
+            [255, 246, 196],
+          ],
+          updateTriggers: { getWeight: [time, maxHumanPopulation] },
         })
       : null;
 
-    const humanSettleLayer = overlay.showHumanTerrain && humanHotspots.length
+    // Invisible pickable targets on the priority hotspots so click-to-evidence and
+    // hover tooltips keep working over the heat field (no visible clutter).
+    const humanPickLayer = overlay.showHumanTerrain && humanHotspots.length
       ? new ScatterplotLayer<Hexagon>({
           id: 'human-settlements',
           data: humanHotspots,
           visible: showHumanAnalysis,
           pickable: true,
-          stroked: true,
+          stroked: false,
           filled: true,
-          billboard: false,
           radiusUnits: 'meters',
-          lineWidthUnits: 'pixels',
           getPosition: (d) => [d.lng, d.lat],
-          getRadius: (d) => 650 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 2700,
-          getFillColor: (d) => {
-            const risk = riskAtTime(d, time);
-            const confidence = 1 - clamp01(d.uncertainty);
-            const color = humanTerrainColor(
-              humanTerrainScore(d, risk),
-              confidence,
-              selectedHex?.h3_id === d.h3_id,
-              hoveredId === d.h3_id,
-            );
-            return [color[0], color[1], color[2], selectedHex?.h3_id === d.h3_id || hoveredId === d.h3_id ? 210 : 126];
-          },
-          getLineColor: (d) => {
-            if (selectedHex?.h3_id === d.h3_id) return [255, 255, 255, 240];
-            if (hoveredId === d.h3_id) return [210, 244, 255, 220];
-            const confidence = 1 - clamp01(d.uncertainty);
-            return confidence < 0.55 ? [195, 145, 255, 220] : [255, 255, 255, 130];
-          },
-          getLineWidth: (d) => humanPriority(d, riskAtTime(d, time), maxHumanPopulation) > 0.72 ? 2.8 : 1.25,
-          updateTriggers: {
-            getRadius: [maxHumanPopulation, time],
-            getFillColor: [time, selectedHex?.h3_id, hoveredId],
-            getLineColor: [selectedHex?.h3_id, hoveredId, time],
-            getLineWidth: [time, maxHumanPopulation],
-          },
-        })
-      : null;
-
-    const humanRingLayer = overlay.showHumanTerrain && humanHotspots.length
-      ? new ScatterplotLayer<Hexagon>({
-          id: 'human-priority-rings',
-          data: humanHotspots.slice(0, 90),
-          visible: showHumanAnalysis,
-          pickable: false,
-          stroked: true,
-          filled: false,
-          billboard: false,
-          radiusUnits: 'meters',
-          lineWidthUnits: 'pixels',
-          getPosition: (d) => [d.lng, d.lat],
-          getRadius: (d) => 1300 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 4200,
-          getFillColor: [0, 0, 0, 0],
-          getLineColor: (d) => {
-            const p = humanPriority(d, riskAtTime(d, time), maxHumanPopulation);
-            if (1 - clamp01(d.uncertainty) < 0.55) return [190, 120, 255, 180];
-            return p > 0.76 ? [255, 86, 102, 210] : p > 0.58 ? [255, 196, 90, 190] : [91, 213, 255, 160];
-          },
-          getLineWidth: (d) => 1.2 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 2.2,
+          getRadius: (d) => 1400 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 4200,
+          // near-invisible: a faint white core only on the hovered/selected hotspot
+          getFillColor: (d) =>
+            selectedHex?.h3_id === d.h3_id || hoveredId === d.h3_id ? [255, 255, 255, 60] : [255, 255, 255, 0],
           updateTriggers: {
             getRadius: [time, maxHumanPopulation],
-            getFillColor: [time, maxHumanPopulation],
-            getLineColor: [time, maxHumanPopulation],
-            getLineWidth: [time, maxHumanPopulation],
+            getFillColor: [selectedHex?.h3_id, hoveredId],
           },
-        })
-      : null;
-
-    const humanLabelLayer = overlay.showHumanTerrain && humanLabels.length
-      ? new TextLayer<Hexagon>({
-          id: 'human-place-labels',
-          data: humanLabels,
-          visible: showHumanAnalysis,
-          pickable: false,
-          getPosition: (d) => [d.lng, d.lat],
-          getText: (d) => d.district,
-          getSize: (d) => 11 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 7,
-          getColor: [235, 247, 255, 230],
-          getAngle: 0,
-          getTextAnchor: 'middle',
-          getAlignmentBaseline: 'center',
-          billboard: true,
-          background: true,
-          getBackgroundColor: [5, 13, 20, 150],
-          backgroundPadding: [5, 3],
-          updateTriggers: { getSize: [time, maxHumanPopulation] },
         })
       : null;
 
@@ -444,7 +369,7 @@ export default function Globe({
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const layers: any[] = [humanGlowLayer, humanRingLayer, humanSettleLayer, humanLabelLayer, ...floodLayers, hexLayer, facLayer].filter(Boolean);
+    const layers: any[] = [humanHeatLayer, humanPickLayer, ...floodLayers, hexLayer, facLayer].filter(Boolean);
 
     if (route) {
       layers.push(new PathLayer<EvacRoute>({
@@ -550,10 +475,10 @@ export default function Globe({
       {overlay.showHumanTerrain && mapZoom < 10.7 && (
         <div className="human-terrain-key">
           <div className="htk-title">Human Terrain</div>
-          <div className="htk-row"><i className="cyan" /> glow = settlement population cluster</div>
-          <div className="htk-row"><i className="amber" /> color = compound vulnerability</div>
-          <div className="htk-row"><i className="red" /> ring = highest-priority places</div>
-          <div className="htk-row"><i className="violet" /> purple = weaker evidence confidence</div>
+          <div className="htk-row"><i className="violet" /> dim = few people / lower priority</div>
+          <div className="htk-row"><i className="amber" /> ember = dense vulnerable under-5s</div>
+          <div className="htk-row"><i className="red" /> white-hot = highest-priority zones</div>
+          <div className="htk-row">density × flood risk × service gaps</div>
         </div>
       )}
     </>
