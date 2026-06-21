@@ -4,9 +4,10 @@ from pathlib import Path
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).resolve().parent.parent / "data"))
 
-# Default H3 resolution for the country fill. res 6 ~= 3.2 km cells -> a few
-# thousand cells per country, smooth on phones.
-H3_RES = int(os.environ.get("H3_RES", "6"))
+# Default H3 resolution for the country fill. res 7 ~= 1.2 km cells -> a denser
+# grid for the Human Terrain "forest of spikes". The committed parquet is built
+# at this resolution (see scripts/subdivide_res7.py / precompute.py).
+H3_RES = int(os.environ.get("H3_RES", "7"))
 
 # Per-country settings. `prefix` matches the WorldPop ISO-lowercase file prefix
 # and our boundary/facility filenames. `center`/`zoom` drive the initial camera.

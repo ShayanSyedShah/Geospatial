@@ -4,7 +4,6 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { BitmapLayer, ColumnLayer, IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
-import { HeatmapLayer } from '@deck.gl/aggregation-layers';
 import { buildNeighborMask } from '../utils/neighborMask';
 import { api } from '../services/api';
 import type { EvacRoute, Facility, Hexagon, UserLocation } from '../types';
@@ -126,9 +125,43 @@ function humanTerrainScore(hex: Hexagon, risk: number) {
   return clamp01((risk * 0.32) + (serviceGap * 0.34) + (uncertainty * 0.18) + (hex.population_u5 > 5000 ? 0.16 : 0.08));
 }
 
-function humanPriority(hex: Hexagon, risk: number, maxPopulation: number) {
-  const pop = Math.log1p(hex.population_u5) / Math.log1p(maxPopulation);
-  return clamp01((pop * 0.58) + (humanTerrainScore(hex, risk) * 0.42));
+// "Human Terrain" 3D spikes (cf. pudding.cool/2018/10/city_3d): each cell becomes
+// a thin extruded column. Both height AND colour encode under-5 population
+// density — short pale-green spikes where few people live, tall dark-green
+// towers in the densest places.
+const HUMAN_BLOCK_BASE_M = 120;
+const HUMAN_BLOCK_MAX_M = 30000;
+// ColorBrewer "Greens": pale sage → deep forest
+const GREENS: Array<[number, number, number]> = [
+  [229, 245, 224],
+  [161, 217, 155],
+  [116, 196, 118],
+  [49, 163, 84],
+  [0, 109, 44],
+  [0, 68, 27],
+];
+
+function greensColor(t: number): [number, number, number] {
+  const x = clamp01(t) * (GREENS.length - 1);
+  const i = Math.floor(x);
+  const f = x - i;
+  const a = GREENS[i];
+  const b = GREENS[Math.min(i + 1, GREENS.length - 1)];
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * f),
+    Math.round(a[1] + (b[1] - a[1]) * f),
+    Math.round(a[2] + (b[2] - a[2]) * f),
+  ];
+}
+
+// normalized density [0,1]; pow < 1 lifts mid-range so cities read as a forest
+// of spikes while a few dense cells still tower above the rest
+function humanDensity(hex: Hexagon, maxPopulation: number) {
+  return Math.pow(clamp01(hex.population_u5 / maxPopulation), 0.7);
+}
+
+function humanBlockHeight(hex: Hexagon, maxPopulation: number) {
+  return HUMAN_BLOCK_BASE_M + humanDensity(hex, maxPopulation) * HUMAN_BLOCK_MAX_M;
 }
 
 export default function Globe({
@@ -153,14 +186,6 @@ export default function Globe({
     () => Math.max(1, ...hexagons.map((h) => h.population_u5)),
     [hexagons],
   );
-
-  const humanHotspots = useMemo(
-    () => [...hexagons]
-      .sort((a, b) => humanPriority(b, riskAtTime(b, time), maxHumanPopulation) - humanPriority(a, riskAtTime(a, time), maxHumanPopulation))
-      .slice(0, 320),
-    [hexagons, time, maxHumanPopulation],
-  );
-
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -271,54 +296,38 @@ export default function Globe({
 
     const tierOp = tierOpacity(time);
     const showHumanAnalysis = overlay.showHumanTerrain && mapZoom < 10.7;
-    // Hero "Human Terrain" visual: a smooth GPU kernel-density heat field of where
-    // the most vulnerable under-5 population concentrates — continuous glow, no
-    // blocky towers/dots. Weight = population × compound vulnerability.
-    const humanHeatLayer = overlay.showHumanTerrain && hexagons.length
-      ? new HeatmapLayer<Hexagon>({
-          id: 'human-heat',
+    // Hero "Human Terrain" visual: an extruded hex-grid skyline (cf. pudding.cool
+    // city_3d). Each cell is a 3D block — height = under-5 population density, so
+    // the taller and more clustered the towers, the denser the vulnerable
+    // population. Colour = compound vulnerability (density × flood risk × gaps).
+    const humanBlockLayer = overlay.showHumanTerrain && hexagons.length
+      ? new ColumnLayer<Hexagon>({
+          id: 'human-settlements',
           data: hexagons,
           visible: showHumanAnalysis,
-          pickable: false,
-          getPosition: (d) => [d.lng, d.lat],
-          getWeight: (d) => Math.round(humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 100),
-          aggregation: 'SUM',
-          radiusPixels: 38,
-          intensity: 0.9,
-          threshold: 0.06,
-          opacity: 0.8,
-          // cinematic magma-style ramp: deep violet → magenta → ember → hot white
-          colorRange: [
-            [22, 16, 64],
-            [86, 24, 134],
-            [180, 44, 120],
-            [240, 92, 70],
-            [252, 176, 64],
-            [255, 246, 196],
-          ],
-          updateTriggers: { getWeight: [time, maxHumanPopulation] },
-        })
-      : null;
-
-    // Invisible pickable targets on the priority hotspots so click-to-evidence and
-    // hover tooltips keep working over the heat field (no visible clutter).
-    const humanPickLayer = overlay.showHumanTerrain && humanHotspots.length
-      ? new ScatterplotLayer<Hexagon>({
-          id: 'human-settlements',
-          data: humanHotspots,
-          visible: showHumanAnalysis,
           pickable: true,
-          stroked: false,
+          extruded: true,
           filled: true,
-          radiusUnits: 'meters',
+          stroked: false,
+          // thin square cross-section so tall cells read as spikes, not slabs.
+          // 4-sided disk + 45° rotation = axis-aligned square; ~420 m circumradius
+          // → ~0.6 km sides, narrow against the ~2.1 km res-7 cell spacing so the
+          // dense grid reads as a forest of spikes rather than merged slabs.
+          diskResolution: 4,
+          radius: 420,
+          angle: 45,
+          elevationScale: 1,
           getPosition: (d) => [d.lng, d.lat],
-          getRadius: (d) => 1400 + humanPriority(d, riskAtTime(d, time), maxHumanPopulation) * 4200,
-          // near-invisible: a faint white core only on the hovered/selected hotspot
-          getFillColor: (d) =>
-            selectedHex?.h3_id === d.h3_id || hoveredId === d.h3_id ? [255, 255, 255, 60] : [255, 255, 255, 0],
+          getElevation: (d) => humanBlockHeight(d, maxHumanPopulation),
+          getFillColor: (d) => {
+            const [r, g, b] = greensColor(humanDensity(d, maxHumanPopulation));
+            const lit = selectedHex?.h3_id === d.h3_id || hoveredId === d.h3_id;
+            return lit ? [255, 240, 150, 255] : [r, g, b, 240];
+          },
+          material: { ambient: 0.55, diffuse: 0.6, shininess: 24, specularColor: [220, 240, 220] },
           updateTriggers: {
-            getRadius: [time, maxHumanPopulation],
-            getFillColor: [selectedHex?.h3_id, hoveredId],
+            getElevation: [maxHumanPopulation],
+            getFillColor: [maxHumanPopulation, selectedHex?.h3_id, hoveredId],
           },
         })
       : null;
@@ -462,8 +471,7 @@ export default function Globe({
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const layers: any[] = [
-      humanHeatLayer,
-      humanPickLayer,
+      humanBlockLayer,
       ...floodLayers,
       hexLayer,
       facilityRings,
@@ -525,7 +533,7 @@ export default function Globe({
     });
   }, [
     country, floodBounds, overlay, floodedHexagons, facilities, route, userLocation,
-    time, selectedHex, hoveredId, maxHumanPopulation, humanHotspots, mapZoom,
+    time, selectedHex, hoveredId, maxHumanPopulation, mapZoom,
   ]);
 
   useEffect(() => {
@@ -574,13 +582,28 @@ export default function Globe({
           )}
         </div>
       )}
-      {overlay.showHumanTerrain && mapZoom < 10.7 && (
-        <div className="human-terrain-key">
-          <div className="htk-title">Human Terrain</div>
-          <div className="htk-row"><i className="violet" /> dim = few people / lower priority</div>
-          <div className="htk-row"><i className="amber" /> ember = dense vulnerable under-5s</div>
-          <div className="htk-row"><i className="red" /> white-hot = highest-priority zones</div>
-          <div className="htk-row">density × flood risk × service gaps</div>
+      {(overlay.showPopulation || (overlay.showHumanTerrain && mapZoom < 10.7)) && (
+        <div className="map-legend-stack">
+          {overlay.showPopulation && (
+            <div className="human-terrain-key">
+              <div className="htk-title">Population density</div>
+              <div className="htk-row htk-sub">NASA SEDAC · GPWv4 (2020) · persons / km²</div>
+              <div className="htk-row"><i style={{ background: '#fff2d1', color: '#fff2d1' }} /> &lt;1 — uninhabited</div>
+              <div className="htk-row"><i style={{ background: '#fab855', color: '#fab855' }} /> ~10–25 — rural / villages</div>
+              <div className="htk-row"><i style={{ background: '#fc933f', color: '#fc933f' }} /> ~150–250 — dense towns</div>
+              <div className="htk-row"><i style={{ background: '#f03b20', color: '#f03b20' }} /> ~500–750 — urban</div>
+              <div className="htk-row"><i style={{ background: '#bd0026', color: '#bd0026' }} /> 1000+ — city cores</div>
+            </div>
+          )}
+          {overlay.showHumanTerrain && mapZoom < 10.7 && (
+            <div className="human-terrain-key">
+              <div className="htk-title">Human Terrain</div>
+              <div className="htk-row">taller + darker spike = denser under-5 population</div>
+              <div className="htk-row"><i style={{ background: '#e5f5e0', color: '#e5f5e0' }} /> short pale = few people</div>
+              <div className="htk-row"><i style={{ background: '#31a354', color: '#31a354' }} /> mid green = moderate density</div>
+              <div className="htk-row"><i style={{ background: '#00441b', color: '#00441b' }} /> tall dark = densest settlements</div>
+            </div>
+          )}
         </div>
       )}
     </>

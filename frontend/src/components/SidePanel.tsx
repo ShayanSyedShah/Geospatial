@@ -43,6 +43,7 @@ export default function SidePanel({
   userLocation, onPreset, onClearLocation, route,
   overlay, onOverlayChange, floodedCount,
 }: Props) {
+  const [panelOpen, setPanelOpen] = useState(true);
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -62,7 +63,16 @@ export default function SidePanel({
   const [checked, setChecked] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="side-panel dashboard">
+    <>
+      <button
+        className={`sp-toggle ${panelOpen ? 'is-open' : 'is-closed'}`}
+        onClick={() => setPanelOpen((o) => !o)}
+        title={panelOpen ? 'Hide panel' : 'Show panel'}
+        aria-label={panelOpen ? 'Hide panel' : 'Show panel'}
+      >
+        {panelOpen ? '◀' : '▶'}
+      </button>
+      <div className={`side-panel dashboard ${panelOpen ? '' : 'collapsed'}`}>
       <Section title="Wave 1 · Today" icon="🌊" defaultOpen badge={`${live.cells} cells`}>
         <div className="sp-stats">
           <div className="stat">
@@ -109,22 +119,24 @@ export default function SidePanel({
       </Section>
 
       <Section title="Map layers" icon="🗺" defaultOpen={false}>
-        <label className="overlay-toggle">
-          <input type="checkbox" checked={overlay.showHumanTerrain} onChange={(e) => onOverlayChange({ ...overlay, showHumanTerrain: e.target.checked })} />
-          Human terrain <em>hides on zoom-in</em>
-        </label>
-        <label className="overlay-toggle">
-          <input type="checkbox" checked={overlay.showFloodCells} onChange={(e) => onOverlayChange({ ...overlay, showFloodCells: e.target.checked })} />
-          Risk grid <em>{floodedCount} cells</em>
-        </label>
-        <label className="overlay-toggle">
-          <input type="checkbox" checked={overlay.showRiverExtent} onChange={(e) => onOverlayChange({ ...overlay, showRiverExtent: e.target.checked })} />
-          Flood extent
-        </label>
-        <label className="overlay-toggle">
-          <input type="checkbox" checked={overlay.showPopulation} onChange={(e) => onOverlayChange({ ...overlay, showPopulation: e.target.checked })} />
-          Population density <em>NASA SEDAC</em>
-        </label>
+        <div className="layer-list">
+          <label className="overlay-toggle">
+            <input type="checkbox" checked={overlay.showHumanTerrain} onChange={(e) => onOverlayChange({ ...overlay, showHumanTerrain: e.target.checked })} />
+            Human terrain <em>hides on zoom-in</em>
+          </label>
+          <label className="overlay-toggle">
+            <input type="checkbox" checked={overlay.showFloodCells} onChange={(e) => onOverlayChange({ ...overlay, showFloodCells: e.target.checked })} />
+            Risk grid <em>{floodedCount} cells</em>
+          </label>
+          <label className="overlay-toggle">
+            <input type="checkbox" checked={overlay.showRiverExtent} onChange={(e) => onOverlayChange({ ...overlay, showRiverExtent: e.target.checked })} />
+            Flood extent
+          </label>
+          <label className="overlay-toggle">
+            <input type="checkbox" checked={overlay.showPopulation} onChange={(e) => onOverlayChange({ ...overlay, showPopulation: e.target.checked })} />
+            Population density <em>NASA SEDAC</em>
+          </label>
+        </div>
       </Section>
 
       <Section title="Districts by risk" icon="📍" defaultOpen={false} badge={regions.length || null}>
@@ -147,6 +159,7 @@ export default function SidePanel({
           {filtered.length === 0 && <div className="empty">No districts match.</div>}
         </div>
       </Section>
-    </div>
+      </div>
+    </>
   );
 }

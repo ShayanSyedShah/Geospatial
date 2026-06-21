@@ -184,19 +184,37 @@ a { color: #6cc0ff; }
 }
 .side-panel.dashboard {
   top: var(--topbar-h); height: calc(100% - var(--topbar-h));
-  width: 340px; padding: 10px 10px 90px; overflow-y: auto; gap: 8px;
+  width: 340px; padding: 10px 10px 90px; overflow-y: auto; overscroll-behavior: contain; gap: 8px;
+  transition: transform .25s ease;
 }
+.side-panel.dashboard.collapsed { transform: translateX(calc(-100% - var(--rail-w) - 12px)); }
+
+/* Open/close toggle tab — rides the panel's right edge, slides to the rail when closed. */
+.sp-toggle {
+  position: fixed; z-index: 25; top: calc(var(--topbar-h) + 12px);
+  width: 24px; height: 34px; border-radius: 0 9px 9px 0;
+  background: var(--panel); backdrop-filter: blur(10px);
+  border: 1px solid var(--line); border-left: none;
+  color: var(--text); cursor: pointer; font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+  transition: left .25s ease, background .12s;
+}
+.sp-toggle:hover { background: rgba(33,150,243,.18); }
+.sp-toggle.is-open { left: calc(var(--rail-w) + 340px); }
+.sp-toggle.is-closed { left: var(--rail-w); }
 
 /* ---------- Accordion sections ---------- */
-.dash-section { border: 1px solid var(--line); border-radius: 11px; background: rgba(17,32,43,.55); overflow: hidden; }
+.dash-section { flex: none; border: 1px solid var(--line); border-radius: 11px; background: rgba(17,32,43,.55); overflow: hidden; }
 .dash-section.open { background: rgba(17,32,43,.8); }
 .dash-section-head {
   width: 100%; display: flex; align-items: center; gap: 9px; padding: 11px 12px;
+  min-height: 44px; line-height: 1;
   background: none; border: none; color: var(--text); cursor: pointer; font-size: 13px; font-weight: 700;
 }
 .dash-section-head:hover { background: rgba(255,255,255,.03); }
-.ds-icon { font-size: 14px; }
-.ds-title { flex: 1; text-align: left; letter-spacing: .2px; }
+.ds-icon { font-size: 14px; line-height: 1; display: inline-flex; align-items: center; }
+.ds-title { flex: 1; text-align: left; letter-spacing: .2px; line-height: 1; display: inline-flex; align-items: center; }
+.ds-badge, .ds-chevron { align-self: center; }
 .ds-badge {
   font-size: 10.5px; font-weight: 700; color: #ffd7a8; background: rgba(255,180,90,.14);
   padding: 1px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px;
@@ -247,7 +265,7 @@ a { color: #6cc0ff; }
 .sp-list-head { display: flex; justify-content: space-between; align-items: baseline; }
 .clear-link { background: none; border: none; color: #6cc0ff; font-size: 11px; cursor: pointer; padding: 0; }
 
-.district-list { overflow-y: auto; flex: 1; margin: 0 -6px; padding: 0 6px; }
+.district-list { max-height: 360px; overflow-y: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 0 6px; }
 .district {
   display: flex; align-items: center; gap: 9px; width: 100%;
   background: none; border: none; border-radius: 8px; padding: 8px 8px;
@@ -304,6 +322,22 @@ a { color: #6cc0ff; }
 .map-tooltip span { color: var(--muted); }
 .map-tooltip-hint { color: #6cc0ff !important; font-size: 10.5px; margin-top: 2px; }
 
+.map-legend-stack {
+  position: fixed;
+  right: 18px;
+  bottom: 78px;
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+/* keys are positioned by the stack, not individually */
+.map-legend-stack .human-terrain-key {
+  position: static;
+  right: auto;
+  bottom: auto;
+}
 .human-terrain-key {
   position: fixed;
   right: 18px;
@@ -344,6 +378,7 @@ a { color: #6cc0ff; }
 .htk-row i.amber { background: #ffd25a; color: #ffd25a; }
 .htk-row i.red { background: #ff4d5c; color: #ff4d5c; }
 .htk-row i.violet { background: #aa69ff; color: #aa69ff; }
+.htk-row.htk-sub { color: #9fb4c6; font-size: 10.5px; margin-bottom: 4px; }
 
 /* location / evacuation in side panel */
 .tap-hint { font-size: 11.5px; color: var(--muted); margin: 7px 0 0; }
@@ -487,6 +522,7 @@ a { color: #6cc0ff; }
 
 /* ---------- Protocols ---------- */
 .protocols { display: flex; flex-direction: column; gap: 6px; }
+.layer-list { display: flex; flex-direction: column; }
 .protocol { display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: 8px; background: #11202b; border: 1px solid var(--line); font-size: 12.5px; cursor: pointer; }
 .protocol input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
 .protocol.urgent { border-color: rgba(255,90,82,.4); }
@@ -676,6 +712,10 @@ a { color: #6cc0ff; }
     border-right: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
     padding: 8px 10px; overflow-y: auto;
   }
+  /* Mobile keeps the bottom-sheet UX: no horizontal slide, no edge tab. */
+  .side-panel.dashboard.collapsed { transform: none; }
+  .sp-toggle { display: none; }
+  .district-list { max-height: 300px; }
   .topbar { gap: 8px; padding: 0 10px; }
   .tb-context { display: none; }
   .tb-brandtext span { display: none; }
