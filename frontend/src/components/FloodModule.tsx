@@ -122,9 +122,20 @@ export default function FloodModule() {
 
   const displayedFacilities = useMemo(() => {
     if (userLocation) return allFacilities.filter((f) => haversine(userLocation.lat, userLocation.lng, f.lat, f.lng) < NEARBY_M);
-    if (district) return allFacilities.filter((f) => f.district === district);
+    if (district) {
+      const exact = allFacilities.filter((f) => f.district === district);
+      if (exact.length) return exact;
+      const r = regions.find((x) => x.district === district);
+      if (!r) return [];
+      return allFacilities
+        .map((f) => ({ f, d: haversine(r.lat, r.lng, f.lat, f.lng) }))
+        .filter((x) => x.d < 30000)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 180)
+        .map((x) => x.f);
+    }
     return [];
-  }, [allFacilities, district, userLocation]);
+  }, [allFacilities, district, regions, userLocation]);
 
   const floodedCount = useMemo(
     () => hexagons.filter((h) => isFloodedAtTime(h, time)).length,

@@ -33,6 +33,7 @@ const staticData = {
   countries: '/data/countries.json',
   hexagons: (country: string) => `/data/hexagons_${country}.json`,
   regions: (country: string) => `/data/regions_${country}.json`,
+  facilities: (country: string) => `/data/facilities_${country}.json`,
 };
 
 export const api = {
@@ -48,9 +49,10 @@ export const api = {
     getWithFallback<Region[]>(`/api/regions?country=${encodeURIComponent(country)}`, staticData.regions(country)),
 
   facilities: (country: string, district?: string | null) =>
-    get<FacilityCollection>(
+    getWithFallback<FacilityCollection>(
       `/api/facilities?country=${encodeURIComponent(country)}` +
-      (district && district !== 'All' ? `&district=${encodeURIComponent(district)}` : '')),
+      (district && district !== 'All' ? `&district=${encodeURIComponent(district)}` : ''),
+      staticData.facilities(country)),
 
   floodMeta: (country: string) =>
     get<{ bounds: [number, number, number, number]; tiers: string[] }>(
