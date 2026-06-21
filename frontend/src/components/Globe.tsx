@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
-import { BitmapLayer, IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { BitmapLayer, ColumnLayer, IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
 import { HeatmapLayer } from '@deck.gl/aggregation-layers';
 import { buildNeighborMask } from '../utils/neighborMask';
@@ -107,8 +107,17 @@ const INITIAL_ZOOM = 6.3;
 const BANGLADESH_MAX_BOUNDS: [[number, number], [number, number]] = [[87.65, 20.2], [93.15, 27.1]];
 const TIERS = ['4h', '20h', '7d'] as const;
 const NATIONAL_WATER_OPACITY = 0.38;
-const iconUrl = (f: Facility) => `/m-${f.type}${f.at_risk ? '-risk' : ''}.png`;
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+function facilityColor(f: Facility): [number, number, number, number] {
+  if (f.type === 'clinic') return f.at_risk ? [255, 62, 76, 235] : [235, 248, 255, 230];
+  return f.at_risk ? [255, 146, 45, 235] : [255, 211, 92, 225];
+}
+
+function facilityRoofColor(f: Facility): [number, number, number, number] {
+  if (f.type === 'clinic') return f.at_risk ? [255, 210, 214, 245] : [255, 76, 92, 245];
+  return f.at_risk ? [255, 230, 150, 245] : [66, 148, 255, 235];
+}
 
 function humanTerrainScore(hex: Hexagon, risk: number) {
   const clinicGap = hex.nearest_clinic_m == null ? 0.65 : clamp01(hex.nearest_clinic_m / 30000);
@@ -230,13 +239,14 @@ export default function Globe({
         x: e.point.x,
         y: e.point.y,
         radius: 10,
-        layerIds: ['human-settlements', 'flood-hexagons', 'facilities'],
+        layerIds: ['human-settlements', 'flood-hexagons', 'clinic-roofs', 'school-roofs', 'clinic-buildings', 'school-buildings'],
       });
       if ((picked?.layer?.id === 'human-settlements' || picked?.layer?.id === 'flood-hexagons') && picked.object) {
         cb.current.onSelectHex(picked.object as Hexagon);
         return;
       }
-      if (picked?.layer?.id === 'facilities' && picked.object) {
+      if (picked?.layer?.id?.includes('clinic') || picked?.layer?.id?.includes('school')) {
+        if (!picked.object) return;
         cb.current.onSelectFacility(picked.object as Facility);
         return;
       }
@@ -356,20 +366,90 @@ export default function Globe({
         })
       : null;
 
-    const facLayer = new IconLayer<Facility>({
-      id: 'facilities',
-      data: facilities,
+    const clinicFacilities = facilities.filter((f) => f.type === 'clinic');
+    const schoolFacilities = facilities.filter((f) => f.type === 'school');
+
+    const clinicBuildings = new ColumnLayer<Facility>({
+      id: 'clinic-buildings',
+      data: clinicFacilities,
       pickable: true,
+      diskResolution: 4,
+      radius: 82,
+      extruded: true,
+      stroked: true,
+      filled: true,
+      elevationScale: 1,
       getPosition: (d) => [d.lng, d.lat],
-      getIcon: (d) => ({ url: iconUrl(d), width: 128, height: 128, anchorY: 128 }),
-      getSize: 34,
-      sizeUnits: 'pixels',
-      sizeMinPixels: 20,
-      sizeMaxPixels: 46,
+      getElevation: (d) => (d.at_risk ? 520 : 390),
+      getFillColor: facilityColor,
+      getLineColor: (d) => d.at_risk ? [255, 235, 235, 255] : [110, 215, 255, 230],
+      getLineWidth: 2,
+      lineWidthUnits: 'pixels',
+      material: { ambient: 0.38, diffuse: 0.62, shininess: 42, specularColor: [255, 255, 255] },
+    });
+
+    const clinicRoofs = new ColumnLayer<Facility>({
+      id: 'clinic-roofs',
+      data: clinicFacilities,
+      pickable: true,
+      diskResolution: 4,
+      radius: 44,
+      extruded: true,
+      stroked: false,
+      filled: true,
+      elevationScale: 1,
+      getPosition: (d) => [d.lng, d.lat],
+      getElevation: (d) => (d.at_risk ? 760 : 610),
+      getFillColor: facilityRoofColor,
+      material: { ambient: 0.45, diffuse: 0.6, shininess: 70, specularColor: [255, 255, 255] },
+    });
+
+    const schoolBuildings = new ColumnLayer<Facility>({
+      id: 'school-buildings',
+      data: schoolFacilities,
+      pickable: true,
+      diskResolution: 6,
+      radius: 76,
+      extruded: true,
+      stroked: true,
+      filled: true,
+      elevationScale: 1,
+      getPosition: (d) => [d.lng, d.lat],
+      getElevation: (d) => (d.at_risk ? 430 : 310),
+      getFillColor: facilityColor,
+      getLineColor: (d) => d.at_risk ? [255, 230, 170, 245] : [255, 245, 190, 220],
+      getLineWidth: 1.6,
+      lineWidthUnits: 'pixels',
+      material: { ambient: 0.42, diffuse: 0.58, shininess: 35, specularColor: [255, 242, 190] },
+    });
+
+    const schoolRoofs = new ColumnLayer<Facility>({
+      id: 'school-roofs',
+      data: schoolFacilities,
+      pickable: true,
+      diskResolution: 3,
+      radius: 45,
+      extruded: true,
+      stroked: false,
+      filled: true,
+      elevationScale: 1,
+      getPosition: (d) => [d.lng, d.lat],
+      getElevation: (d) => (d.at_risk ? 610 : 485),
+      getFillColor: facilityRoofColor,
+      material: { ambient: 0.45, diffuse: 0.58, shininess: 55, specularColor: [255, 255, 255] },
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const layers: any[] = [humanHeatLayer, humanPickLayer, ...floodLayers, hexLayer, facLayer].filter(Boolean);
+    const layers: any[] = [
+      humanHeatLayer,
+      humanPickLayer,
+      ...floodLayers,
+      hexLayer,
+      clinicBuildings,
+      schoolBuildings,
+      clinicRoofs,
+      schoolRoofs,
+    ].filter(Boolean);
 
     if (route) {
       layers.push(new PathLayer<EvacRoute>({
@@ -401,7 +481,7 @@ export default function Globe({
         const s = state as { layer?: { id?: string }; object?: unknown };
         if (s.layer?.id === 'human-settlements' && s.object) return 'pointer';
         if (s.layer?.id === 'flood-hexagons' && s.object) return 'pointer';
-        if (s.layer?.id === 'facilities' && s.object) return 'pointer';
+        if ((s.layer?.id?.includes('clinic') || s.layer?.id?.includes('school')) && s.object) return 'pointer';
         return 'crosshair';
       },
       onHover: (info) => {
