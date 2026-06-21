@@ -20,7 +20,7 @@ export default function TopBar({
   return (
     <header className="topbar">
       <div className="tb-brand">
-        <div className="tb-mark">◈</div>
+        <div className="tb-mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.6"><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><line x1="3" y1="12" x2="21" y2="12" /></svg></div>
         <div className="tb-brandtext">
           <b>BEACON</b>
           <span>second-wave flood intelligence</span>

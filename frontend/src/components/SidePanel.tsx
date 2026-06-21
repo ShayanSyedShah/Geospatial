@@ -50,6 +50,7 @@ export default function SidePanel({
     return q ? regions.filter((r) => r.district.toLowerCase().includes(q)) : regions;
   }, [regions, query]);
   const presets = PRESETS[country] ?? [];
+  const dot = <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#009EDB', display: 'inline-block' }} />;
 
   // Protocol checklist derived from the live situation.
   const protocols = useMemo(() => {
@@ -73,7 +74,7 @@ export default function SidePanel({
         {panelOpen ? '◀' : '▶'}
       </button>
       <div className={`side-panel dashboard ${panelOpen ? '' : 'collapsed'}`}>
-      <Section title="Wave 1 · Today" icon="🌊" defaultOpen badge={`${live.cells} cells`}>
+      <Section title="Wave 1 · Today" icon={dot} defaultOpen badge={`${live.cells} cells`}>
         <div className="sp-stats">
           <div className="stat">
             <b>{live.exposed.toLocaleString()}</b>
@@ -106,7 +107,7 @@ export default function SidePanel({
         )}
       </Section>
 
-      <Section title="Protocols" icon="📋" defaultOpen badge={protocols.filter((p) => p.urgent).length || null}>
+      <Section title="Protocols" icon={dot} defaultOpen badge={protocols.filter((p) => p.urgent).length || null}>
         <div className="protocols">
           {protocols.map((p) => (
             <label key={p.id} className={`protocol ${checked[p.id] ? 'done' : ''} ${p.urgent ? 'urgent' : ''}`}>
@@ -118,7 +119,7 @@ export default function SidePanel({
         </div>
       </Section>
 
-      <Section title="Map layers" icon="🗺" defaultOpen={false}>
+      <Section title="Map layers" icon={dot} defaultOpen={false}>
         <div className="layer-list">
           <label className="overlay-toggle">
             <input type="checkbox" checked={overlay.showHumanTerrain} onChange={(e) => onOverlayChange({ ...overlay, showHumanTerrain: e.target.checked })} />
@@ -139,7 +140,7 @@ export default function SidePanel({
         </div>
       </Section>
 
-      <Section title="Districts by risk" icon="📍" defaultOpen={false} badge={regions.length || null}>
+      <Section title="Districts by risk" icon={dot} defaultOpen={false} badge={regions.length || null}>
         <div className="sp-list-head">
           <label>Ranked by children at risk</label>
           {selectedDistrict && <button className="clear-link" onClick={() => onSelectDistrict(null)}>Clear ✕</button>}

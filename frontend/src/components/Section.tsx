@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 
 interface Props {
   title: string;
-  icon?: string;
+  icon?: ReactNode;
   defaultOpen?: boolean;
   badge?: ReactNode;
   children: ReactNode;
