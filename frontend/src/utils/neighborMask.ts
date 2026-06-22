@@ -1,6 +1,6 @@
 // Builds the "everything that is NOT Bangladesh" polygon used to tint the
 // neighbouring countries (India / Myanmar / Bay of Bengal) a faint blue, so the
-// real country pops on the BEACON map.
+// real country pops on the Lighthouse map.
 //
 // Trick: a single GeoJSON Polygon whose OUTER ring is a big regional box and
 // whose HOLES are every Bangladesh land ring. Filling that box with translucent

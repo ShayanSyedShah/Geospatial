@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import LighthouseLogo from './LighthouseLogo';
 
 export type ModuleId = 'overview' | 'flood' | 'sylhet2022' | 'supply' | 'complaints' | 'education';
 
@@ -30,7 +31,7 @@ export default function BeaconShell({ active, onNavigate, children }: {
     <div className="shell">
       <nav className={`rail ${open ? 'open' : ''}`}>
         <button className="rail-toggle" onClick={() => setOpen((o) => !o)} title="Menu">☰</button>
-        <div className="rail-brand"><span className="rail-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.6"><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><line x1="3" y1="12" x2="21" y2="12" /></svg></span><span className="ri-label">BEACON</span></div>
+        <div className="rail-brand"><span className="rail-mark"><LighthouseLogo size={17} /></span><span className="ri-label">Lighthouse</span></div>
         {NAV.map((n) => (
           <button
             key={n.id}

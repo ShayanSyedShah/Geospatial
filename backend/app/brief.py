@@ -75,8 +75,8 @@ def build_brief(cell: dict, time_horizon: str) -> bytes:
                             "Normalised to a 0-1 risk score."]),
         ("Population", ["WorldPop 2020 age/sex structures, 100 m grid.",
                        "Under-5 = sum of female/male ages 0 and 1-4. Census-calibrated."]),
-        ("Infrastructure", ["Schools: Giga (ITU/UNICEF), cross-referenced with OpenStreetMap.",
-                           "Clinics: Healthsites.io / OpenStreetMap community data."]),
+        ("Infrastructure", ["Schools: UN OCHA / Bangladesh LGED registry (via HDX) - 78,129 points.",
+                           "Clinics: UN OCHA / Bangladesh LGED health-facility registry (via HDX)."]),
     ]:
         story.append(Paragraph(f"<b>{title}</b> &nbsp; " + " ".join(lines), body))
         story.append(Spacer(1, 3))

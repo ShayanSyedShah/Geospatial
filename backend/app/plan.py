@@ -101,6 +101,6 @@ def build_plan(df: pd.DataFrame, country: str, district: str | None,
 
     lines.append("## 5. SOURCES (every number is traceable)")
     lines.append("- Children: WorldPop 2020 · Flood: GloFAS / JRC")
-    lines.append("- Schools: UNICEF Giga + OSM · Clinics: Healthsites.io + OSM")
+    lines.append("- Schools & clinics: UN OCHA / Bangladesh LGED registry (via HDX)")
     lines.append("- Joined via the UN Data Commons graph.")
     return "\n".join(lines)

@@ -1,0 +1,77 @@
+{
+  "country": "Bangladesh",
+  "source": "UNICEF GeoSight (CCRI v2)",
+  "api_base": "https://staging-geosight.unitst.org",
+  "indicators": {
+    "ccri_rank": {
+      "value": null,
+      "indicator_id": 380,
+      "shortcode": "ccri_rank",
+      "name": "ccri_rank",
+      "geometry_code": "BGD_V1",
+      "date": "2026-01-01",
+      "admin_level": 0,
+      "source_query": "https://staging-geosight.unitst.org/api/v1/indicators/380/data/"
+    },
+    "child_survival": {
+      "value": 1.07,
+      "indicator_id": 389,
+      "shortcode": "ccri_v2_p2_sur",
+      "name": "Child survival score",
+      "geometry_code": "BGD_V1",
+      "date": "2026-01-01",
+      "admin_level": 0,
+      "source_query": "https://staging-geosight.unitst.org/api/v1/indicators/389/data/"
+    },
+    "nutrition": {
+      "value": 3.97,
+      "indicator_id": 383,
+      "shortcode": "ccri_v2_p2_nut",
+      "name": "Nutrition Score",
+      "geometry_code": "BGD_V1",
+      "date": "2026-01-01",
+      "admin_level": 0,
+      "source_query": "https://staging-geosight.unitst.org/api/v1/indicators/383/data/"
+    },
+    "wash": {
+      "value": 2.44,
+      "indicator_id": 385,
+      "shortcode": "ccri_v2_p2_wash",
+      "name": "WASH score",
+      "geometry_code": "BGD_V1",
+      "date": "2026-01-01",
+      "admin_level": 0,
+      "source_query": "https://staging-geosight.unitst.org/api/v1/indicators/385/data/"
+    },
+    "poverty": {
+      "value": 5.55,
+      "indicator_id": 387,
+      "shortcode": "ccri_v2_p2_pov",
+      "name": "Poverty Score",
+      "geometry_code": "BGD_V1",
+      "date": "2026-01-01",
+      "admin_level": 0,
+      "source_query": "https://staging-geosight.unitst.org/api/v1/indicators/387/data/"
+    },
+    "protection": {
+      "value": 5.91,
+      "indicator_id": 388,
+      "shortcode": "ccri_v2_p2_pro",
+      "name": "Protection score",
+      "geometry_code": "BGD_V1",
+      "date": "2026-01-01",
+      "admin_level": 0,
+      "source_query": "https://staging-geosight.unitst.org/api/v1/indicators/388/data/"
+    },
+    "education": {
+      "value": 3.72,
+      "indicator_id": 386,
+      "shortcode": "ccri_v2_p2_edu",
+      "name": "Education score",
+      "geometry_code": "BGD_V1",
+      "date": "2026-01-01",
+      "admin_level": 0,
+      "source_query": "https://staging-geosight.unitst.org/api/v1/indicators/386/data/"
+    }
+  }
+}

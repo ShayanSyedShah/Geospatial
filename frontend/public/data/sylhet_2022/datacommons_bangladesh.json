@@ -1,0 +1,15 @@
+{
+  "country": "Bangladesh",
+  "dcid": "country/BGD",
+  "api_base": "https://dc-un-dev-dc-datacommons-service-72utkhfqvq-uc.a.run.app/core/api",
+  "source": "UN System Data Commons (/v2/observation)",
+  "indicators": {
+    "Count_Person": {
+      "label": "Total population",
+      "value": 173562364,
+      "date": "2024",
+      "source": "WorldDevelopmentIndicators",
+      "provenance": "https://datatopics.worldbank.org/world-development-indicators/"
+    }
+  }
+}

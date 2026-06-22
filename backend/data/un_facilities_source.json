@@ -1,0 +1,11 @@
+{
+  "source": "UN OCHA (ROAP) / Bangladesh LGED, via HDX",
+  "host": "Humanitarian Data Exchange (data.humdata.org)",
+  "agency": "UN Office for the Coordination of Humanitarian Affairs",
+  "schools_dataset": "https://data.humdata.org/dataset/bangladesh-education-facilities-by-lged",
+  "health_dataset": "https://data.humdata.org/dataset/bangladesh-health-facilities-by-lged",
+  "note": "Giga (UNICEF/ITU) does not cover Bangladesh; OCHA/LGED is the UN source for this country.",
+  "schools": 78129,
+  "clinics": 2484,
+  "at_risk": 61418
+}

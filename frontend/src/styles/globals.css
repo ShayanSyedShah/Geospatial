@@ -520,6 +520,28 @@ a { color: var(--un-blue-mid); }
 .metric span:first-child { color: var(--muted); }
 .metric .value { font-weight: 700; }
 .metric .value.risk { color: var(--risk-high); }
+
+/* Risk breakdown in the evidence panel */
+.risk-headline { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.risk-score { font-size: 38px; font-weight: 800; line-height: 1; }
+.risk-score.high { color: #d62826; }
+.risk-score.moderate { color: #f28c28; }
+.risk-score.low { color: #4a9; }
+.risk-tier { font-weight: 700; font-size: 15px; }
+.risk-tier.high { color: #d62826; }
+.risk-tier.moderate { color: #f28c28; }
+.risk-tier.low { color: #4a9; }
+.risk-sub { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.risk-explain { font-size: 13px; line-height: 1.45; color: var(--text); margin: 4px 0 0; }
+.rf-row { margin: 10px 0; }
+.rf-top { display: flex; justify-content: space-between; font-size: 13px; }
+.rf-label { font-weight: 600; }
+.rf-val { font-weight: 700; }
+.rf-bar { height: 7px; background: var(--bg); border-radius: 4px; overflow: hidden; margin: 4px 0 3px; }
+.rf-bar span { display: block; height: 100%; border-radius: 4px; }
+.rf-meaning { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.risk-formula { font-size: 12px; line-height: 1.5; color: var(--muted); margin-top: 10px; padding: 9px 11px; background: var(--section-head); border-radius: 8px; border: 1px solid var(--line); }
+.risk-formula strong { color: var(--text); }
 .source { background: var(--section-head); border-left: 3px solid var(--un-blue); border-radius: 6px; padding: 11px 13px; margin-bottom: 12px; }
 .source strong { display: block; margin-bottom: 6px; color: var(--un-blue-mid); font-size: 13px; }
 .source p { margin: 3px 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
@@ -552,6 +574,24 @@ a { color: var(--un-blue-mid); }
 .overlay-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; cursor: pointer; font-size: 13px; }
 .overlay-toggle input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
 .overlay-toggle em { margin-left: auto; font-size: 10px; color: var(--muted); font-style: normal; }
+
+/* Stackable layer manager (toggle + opacity + reorder) */
+.layer-stack { display: flex; flex-direction: column; gap: 7px; }
+.layer-stack-hint { font-size: 10.5px; color: var(--muted); margin-bottom: 2px; line-height: 1.3; }
+.layer-row { padding: 7px 8px; border-radius: 8px; background: var(--section-head); border: 1px solid var(--line); }
+.layer-row.off { opacity: .55; }
+.layer-row-main { display: flex; align-items: center; gap: 8px; }
+.layer-row .overlay-toggle { margin-bottom: 0; flex: 1; min-width: 0; }
+.layer-row .layer-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layer-reorder { display: flex; gap: 3px; flex: none; }
+.layer-reorder button { width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 5px; font-size: 11px; line-height: 1; cursor: pointer; }
+.layer-reorder button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.layer-reorder button:disabled { opacity: .3; cursor: default; }
+.layer-opacity { width: 100%; margin-top: 7px; accent-color: var(--accent); height: 4px; cursor: pointer; }
+.layer-opacity:disabled { cursor: default; opacity: .4; }
+.layer-sublayer { display: flex; align-items: center; gap: 7px; margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--line); }
+.layer-sublayer label { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.layer-sublayer select { flex: 1; font-size: 11.5px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--text); }
 
 /* ---------- Modals ---------- */
 .modal-scrim { position: fixed; inset: 0; z-index: 80; background: rgba(11, 35, 61, 0.42); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 24px; animation: fadeIn .15s ease; }
@@ -765,6 +805,7 @@ a { color: var(--un-blue-mid); }
 }
 
 
+/* ===== Sylhet 2022 module (from akhil branch) ===== */
 /* ===== Sylhet 2022 module styles (local) — appended after UN reskin ===== */
 /* ---------- Sylhet 2022 reconstruction ---------- */
 .sylhet2022 { position: fixed; inset: 0 0 0 var(--rail-w); background: #050b12; color: #e8eef7; overflow: hidden; }
@@ -780,7 +821,6 @@ a { color: var(--un-blue-mid); }
 .syl-scaffold ul { margin: 10px 0; padding-left: 18px; line-height: 1.5; }
 .syl-scaffold li { margin: 6px 0; color: #d7e3f4; font-size: 13.5px; }
 .syl-source { color: #9fb1c9; font-size: 12px; margin-top: 12px; }
-
 /* Sylhet 2022 â€” map scene UI */
 /* Fade the far/top of the tilted view into the dark bg so the messy distant
    ground (urban texture / far buildings near the horizon) disappears. */
@@ -788,7 +828,6 @@ a { color: var(--un-blue-mid); }
   background: linear-gradient(180deg, #050b12 0%, rgba(5,11,18,0.82) 24%, rgba(5,11,18,0) 100%); }
 .syl-titlebar { position: relative; z-index: 6; }
 .syl-srcbadge { margin-left: auto; color: #7fd4ff; font-size: 11.5px; border: 1px solid #1d3a52; padding: 4px 9px; border-radius: 20px; background: rgba(8,20,30,.6); }
-
 /* Danger-zone alarms — pulsing red markers on the worst-hit districts. */
 .syl-danger { position: relative; width: 0; height: 0; }
 .syl-danger .dot { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%;
@@ -807,7 +846,6 @@ a { color: var(--un-blue-mid); }
 .syl-danger.sev-1 .ring { border-color: #ff9a6a; }
 .syl-danger.sev-1 .tag b { color: #ffe7d8; }
 @keyframes syl-danger-pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(7); opacity: 0; } }
-
 /* Knocked-out infrastructure pins (airport, rail, town). */
 .syl-infra { display: flex; align-items: center; gap: 6px; white-space: nowrap;
   background: rgba(12,18,28,.86); border: 1px solid #355072; border-radius: 18px; padding: 3px 10px 3px 4px;
@@ -817,6 +855,32 @@ a { color: var(--un-blue-mid); }
   border-radius: 50%; background: #14304a; font-size: 12px;
   animation: syl-ic-pulse 2.4s ease-in-out infinite; }
 .syl-infra b { color: #cfe6ff; font-size: 11.5px; font-weight: 600; }
+/* UNICEF CCRI panel — real child-risk data live from the GeoSight API. */
+.syl-ccri-panel { position: absolute; top: 64px; right: 12px; z-index: 6; width: 230px;
+  background: rgba(10,22,38,.92); border: 1px solid #1d4ed8; border-radius: 12px; padding: 11px 12px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.5); }
+.syl-ccri-panel .ccri-head strong { display: block; color: #e8f1ff; font-size: 12.5px; }
+.syl-ccri-panel .ccri-head span { color: #6fd0ff; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }
+.syl-ccri-panel .ccri-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin: 9px 0; }
+.syl-ccri-panel .ccri-cell { background: rgba(31,79,168,.22); border: 1px solid #20406a; border-radius: 8px; padding: 6px 4px; text-align: center; cursor: help; }
+.syl-ccri-panel .ccri-cell b { display: block; color: #bfe0ff; font-size: 15px; }
+.syl-ccri-panel .ccri-cell span { color: #9fb1c9; font-size: 9.5px; }
+.syl-ccri-panel .ccri-src { display: block; color: #7fd4ff; font-size: 10.5px; text-decoration: none; margin-top: 2px; }
+/* Lighthouse response protocol + back-test panel (left side). */
+.syl-protocol-panel { position: absolute; left: 12px; top: 64px; z-index: 6; width: 270px;
+  background: rgba(10,22,38,.92); border: 1px solid #1f6feb; border-radius: 12px; padding: 11px 12px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.5); max-height: 70vh; overflow: auto; }
+.syl-protocol-panel .pp-head strong { display: block; color: #e8f1ff; font-size: 13px; }
+.syl-protocol-panel .pp-head span { color: #6fd0ff; font-size: 10px; text-transform: uppercase; letter-spacing: .3px; }
+.syl-protocol-panel .pp-list { margin: 9px 0; padding-left: 18px; }
+.syl-protocol-panel .pp-list li { margin: 6px 0; color: #d7e3f4; font-size: 11.5px; }
+.syl-protocol-panel .pp-list b { color: #bfe0ff; display: block; }
+.syl-protocol-panel .pp-list em { color: #9fb1c9; font-style: normal; display: block; font-size: 10.5px; }
+.syl-protocol-panel .pp-list span { color: #6fd0ff; font-size: 9.5px; }
+.syl-protocol-panel .pp-backtest { border-top: 1px solid #20406a; padding-top: 8px; }
+.syl-protocol-panel .pp-backtest strong { color: #ffd9a8; font-size: 11.5px; display: block; margin-bottom: 4px; }
+.syl-protocol-panel .pp-backtest div { color: #cfe0ff; font-size: 10.8px; margin: 3px 0; }
+.syl-protocol-panel .pp-backtest .ok { color: #7CFC9A; font-weight: 700; }
 
 /* Response-protocol target pills — the labelled "where to act" markers, same
    badge style as .syl-infra. The coloured dot/accent comes from --c (set per
@@ -875,17 +939,14 @@ a { color: var(--un-blue-mid); }
 .syl-scene-stat em { color: #9fb1c9; font-style: normal; font-size: 12px; }
 .syl-scene-text p { margin: 4px 0 6px; font-size: 13px; color: #e8eef7; }
 .syl-caveat { font-size: 11px; color: #8aa0bb; }
-
 .syl-play { width: 40px; flex-shrink: 0; border: 1px solid #2a5a7a; border-radius: 10px;
   background: #1f6feb; color: #fff; font-size: 14px; cursor: pointer; }
 .syl-play:hover { background: #2f7ffb; }
 .syl-refbadge { margin-left: 10px; font-size: 10.5px; color: #ffcaa8; border: 1px solid #5a3a2a;
   background: rgba(60,30,20,.4); padding: 2px 7px; border-radius: 12px; vertical-align: middle; }
-
 .syl-rain { flex-shrink: 0; padding: 0 12px; border: 1px solid #2a5a7a; border-radius: 10px;
   background: rgba(20,32,48,.7); color: #cfe0ff; font-size: 12px; font-weight: 700; cursor: pointer; }
 .syl-rain.on { background: rgba(80,120,200,.8); border-color: #6aa0ff; color: #fff; }
-
 .sylhet2022.with-waterlab .maplibregl-ctrl-bottom-right { right: min(44vw, 620px); }
 .syl-waterlab-panel {
   position: absolute;
@@ -1169,7 +1230,8 @@ a { color: var(--un-blue-mid); }
 @keyframes syl-rainfall-sheet {
   0% { transform: translateY(-8px); opacity: .62; }
   100% { transform: translateY(8px); opacity: .9; }
-}.syl-rainburst-panel {
+}
+.syl-rainburst-panel {
   position: absolute;
   left: 68px;
   top: 64px;
@@ -1233,6 +1295,12 @@ a { color: var(--un-blue-mid); }
   color: #bfdbfe;
 }
 
+/* ===== Lighthouse startup splash (radar sweep) ===== */
+.lh-splash {
+  position: fixed; inset: 0; z-index: 99999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+  background: radial-gradient(circle at 50% 44%, #0b2335 0%, #06121c 58%, #03080f 100%);
+  transition: opacity .75s ease;
 /* Response scene — Google-Maps decision model. The map IS the canvas; the UI is a
    thin layer rail (left), an always-visible decision line (top), a corner legend,
    and click-to-open popups → evidence. Everything sits above the floating map
@@ -1458,9 +1526,43 @@ a { color: var(--un-blue-mid); }
   .syl-scenebar { flex-direction: column; }
   .syl-scene-dates { overflow-x: auto; }
 }
-
-
-
-
-
-
+.lh-splash.lh-out { opacity: 0; pointer-events: none; }
+.lh-scope {
+  position: relative; width: min(340px, 64vw); aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,158,219,.08), transparent 70%);
+  box-shadow: inset 0 0 70px rgba(0,158,219,.18), 0 0 50px rgba(0,158,219,.10);
+}
+.lh-rings {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: repeating-radial-gradient(circle at 50% 50%, transparent 0 16%, rgba(130,185,225,.10) 16.1% 16.4%);
+}
+.lh-rings::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(rgba(130,185,225,.10) 0 0) 50% 0 / 1px 100% no-repeat,
+              linear-gradient(rgba(130,185,225,.10) 0 0) 0 50% / 100% 1px no-repeat;
+}
+.lh-sweep {
+  position: absolute; inset: 0; border-radius: 50%; mix-blend-mode: screen;
+  background: conic-gradient(from 0deg,
+    rgba(255,221,90,.55) 0deg, rgba(255,221,90,.16) 22deg, rgba(255,221,90,0) 55deg, transparent 360deg);
+  animation: lh-rotate 2.4s linear infinite;
+}
+@keyframes lh-rotate { to { transform: rotate(360deg); } }
+.lh-dot {
+  position: absolute; width: 7px; height: 7px; margin: -3.5px; border-radius: 50%;
+  background: #7fd1ff; box-shadow: 0 0 8px #7fd1ff; opacity: .22;
+  animation: lh-twinkle 2.4s linear infinite;
+}
+.lh-dot.big { width: 10px; height: 10px; margin: -5px; }
+@keyframes lh-twinkle {
+  0%, 100% { opacity: .2; box-shadow: 0 0 6px #4a90c0; }
+  8% { opacity: 1; box-shadow: 0 0 16px #ffe05a; background: #fff3c4; }
+  26% { opacity: .2; box-shadow: 0 0 6px #4a90c0; background: #7fd1ff; }
+}
+.lh-tower {
+  position: absolute; left: 50%; top: 50%; width: 52px; transform: translate(-50%, -54%);
+  filter: drop-shadow(0 0 14px rgba(255,221,90,.55));
+}
+.lh-word { font-size: clamp(24px, 5vw, 34px); font-weight: 800; letter-spacing: 7px; color: #eaf4ff; }
+.lh-word span { color: #ffd75a; }
+.lh-tag { font-size: 12.5px; letter-spacing: .4px; color: #6f8aa6; }

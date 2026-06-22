@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { EvacRoute, Region, UserLocation } from '../types';
-import type { FloodOverlaySettings } from './FloodOverlayControls';
+import type { LayerCfg } from './layers';
+import { RISK_LENSES, type RiskLens } from '../utils/riskModel';
 import { timeLabel, waterColor } from '../utils/risk';
 import { compass } from '../utils/geo';
 import Section from './Section';
@@ -17,8 +18,10 @@ interface Props {
   onPreset: (lng: number, lat: number, label: string) => void;
   onClearLocation: () => void;
   route: EvacRoute | null;
-  overlay: FloodOverlaySettings;
-  onOverlayChange: (s: FloodOverlaySettings) => void;
+  layers: LayerCfg[];
+  onLayersChange: (l: LayerCfg[]) => void;
+  riskLens: RiskLens;
+  onRiskLensChange: (l: RiskLens) => void;
   floodedCount: number;
 }
 
@@ -41,8 +44,17 @@ const km = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFix
 export default function SidePanel({
   country, live, time, scope, regions, selectedDistrict, onSelectDistrict,
   userLocation, onPreset, onClearLocation, route,
-  overlay, onOverlayChange, floodedCount,
+  layers, onLayersChange, riskLens, onRiskLensChange, floodedCount,
 }: Props) {
+  const setLayer = (id: string, patch: Partial<LayerCfg>) =>
+    onLayersChange(layers.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= layers.length) return;
+    const next = layers.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    onLayersChange(next);
+  };
   const [panelOpen, setPanelOpen] = useState(true);
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
@@ -119,24 +131,40 @@ export default function SidePanel({
         </div>
       </Section>
 
-      <Section title="Map layers" icon={dot} defaultOpen={false}>
-        <div className="layer-list">
-          <label className="overlay-toggle">
-            <input type="checkbox" checked={overlay.showHumanTerrain} onChange={(e) => onOverlayChange({ ...overlay, showHumanTerrain: e.target.checked })} />
-            Human terrain <em>hides on zoom-in</em>
-          </label>
-          <label className="overlay-toggle">
-            <input type="checkbox" checked={overlay.showFloodCells} onChange={(e) => onOverlayChange({ ...overlay, showFloodCells: e.target.checked })} />
-            Risk grid <em>{floodedCount} cells</em>
-          </label>
-          <label className="overlay-toggle">
-            <input type="checkbox" checked={overlay.showRiverExtent} onChange={(e) => onOverlayChange({ ...overlay, showRiverExtent: e.target.checked })} />
-            Flood extent
-          </label>
-          <label className="overlay-toggle">
-            <input type="checkbox" checked={overlay.showPopulation} onChange={(e) => onOverlayChange({ ...overlay, showPopulation: e.target.checked })} />
-            Population density <em>NASA SEDAC</em>
-          </label>
+      <Section title="Map layers" icon={dot} defaultOpen={true}>
+        <div className="layer-stack">
+          <div className="layer-stack-hint">Toggle, fade, and reorder — top of the list draws on top.</div>
+          {layers.map((l, i) => (
+            <div key={l.id} className={`layer-row ${l.on ? 'on' : 'off'}`}>
+              <div className="layer-row-main">
+                <label className="overlay-toggle">
+                  <input type="checkbox" checked={l.on} onChange={(e) => setLayer(l.id, { on: e.target.checked })} />
+                  <span className="layer-name">{l.label}</span>
+                  {l.id === 'riskGrid' ? <em>{floodedCount} cells</em> : l.sub ? <em>{l.sub}</em> : null}
+                </label>
+                <div className="layer-reorder">
+                  <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                  <button type="button" aria-label="Move down" disabled={i === layers.length - 1} onClick={() => move(i, 1)}>↓</button>
+                </div>
+              </div>
+              <input
+                className="layer-opacity"
+                type="range" min={0} max={1} step={0.05}
+                value={l.opacity}
+                disabled={!l.on}
+                onChange={(e) => setLayer(l.id, { opacity: Number(e.target.value) })}
+                title={`Opacity ${Math.round(l.opacity * 100)}%`}
+              />
+              {l.id === 'riskGrid' && l.on && (
+                <div className="layer-sublayer">
+                  <label>Show why ↳</label>
+                  <select value={riskLens} onChange={(e) => onRiskLensChange(e.target.value as RiskLens)}>
+                    {RISK_LENSES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </Section>
 

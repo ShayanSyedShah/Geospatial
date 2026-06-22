@@ -45,11 +45,19 @@ export class SylhetMapWaterLayer implements maplibregl.CustomLayerInterface {
   private mode: 'off' | 'surge' | 'flood' = 'off';
   private lastFloodFc: unknown = null;           // skip re-rasterising the same extent
   private riverMask!: Float32Array;              // narrow river-width mask (surge stays river-sized)
+  private floodMask: Float32Array | null = null; // reserved for flood-aware spread
+  /** kept for future flood-aware spread; referenced so the strict build is happy */
+  getFloodMask(): Float32Array | null { return this.floodMask; }
 
   private origin: maplibregl.MercatorCoordinate;
   private scaleM: number;
   private local = new THREE.Matrix4();
   private readonly minVisibleZoom = 6.5;
+  // The shallow-water sim + geometry upload are the heavy main-thread cost. Run
+  // them at ~30 Hz (not every render frame) — the GPU shader ripple still runs at
+  // the map's full rate, so the water stays smooth without pinning the CPU.
+  private lastSim = 0;
+  private readonly simIntervalMs = 1000 / 30;
 
   constructor() {
     const grid = DEM as Grid;
@@ -232,6 +240,9 @@ export class SylhetMapWaterLayer implements maplibregl.CustomLayerInterface {
     this.map = map;
     this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl as WebGL2RenderingContext, antialias: true });
     this.renderer.autoClear = false;
+    // Cap device pixel ratio: on Retina/4K screens the water would otherwise be
+    // rendered at 2–4× the pixels for no visible gain — the single biggest GPU saver.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 
     const grid = DEM as Grid;
     const [lng0, lat0, lng1, lat1] = grid.bbox;
@@ -295,39 +306,49 @@ export class SylhetMapWaterLayer implements maplibregl.CustomLayerInterface {
     if (this.targetStage <= 0.001 || this.map.getZoom() < this.minVisibleZoom) {
       return;
     }
-    const wp = this.waterGeo.attributes.position.array as Float32Array;
-    const wd = this.waterGeo.attributes.aDepth.array as Float32Array;
-    if (this.mode === 'flood') {
-      // Step 5: river water flows out of the channels and FILLS the low haor
-      // basin (shallow-water sim). Depth follows the real terrain — deep in the
-      // low haor centres, shallow at the rim = how much water actually pools.
-      this.simStep();
-      for (let k = 0; k < this.N; k++) {
-        const dep = this.d[k];
-        wd[k] = dep;
-        wp[k * 3 + 2] = (this.b[k] + dep) * EXAG;
+    const now = performance.now();
+    // Heavy work (shallow-water sim + per-vertex geometry rebuild + GPU upload) is
+    // throttled to ~30 Hz. The Three.js draw + shader ripple below still run at the
+    // map's native rate, so the water looks smooth while the CPU does ~half the work.
+    if (now - this.lastSim >= this.simIntervalMs) {
+      this.lastSim = now;
+      const wp = this.waterGeo.attributes.position.array as Float32Array;
+      const wd = this.waterGeo.attributes.aDepth.array as Float32Array;
+      if (this.mode === 'flood') {
+        // Step 5: river water flows out of the channels and FILLS the low haor
+        // basin (shallow-water sim). Depth follows the real terrain — deep in the
+        // low haor centres, shallow at the rim = how much water actually pools.
+        this.simStep();
+        for (let k = 0; k < this.N; k++) {
+          const dep = this.d[k];
+          wd[k] = dep;
+          wp[k * 3 + 2] = (this.b[k] + dep) * EXAG;
+        }
+      } else {
+        // Step 4 (river surge): water stays RIVER-SIZED — confined to the channel
+        // mask, rising/deepening in place (no lateral spread over houses).
+        // Ease factor scaled for the 30 Hz cadence so the swell speed is unchanged.
+        this.stage += (this.targetStage - this.stage) * 0.024; // slow, watchable swell
+        const mask = this.riverMask;
+        for (let k = 0; k < this.N; k++) {
+          const m = mask[k];
+          const dep = m > 0.05 ? m * this.stage : 0;
+          wd[k] = dep;
+          wp[k * 3 + 2] = (this.b[k] + dep) * EXAG;
+        }
       }
-    } else {
-      // Step 4 (river surge): water stays RIVER-SIZED — confined to the channel
-      // mask, rising/deepening in place (no lateral spread over houses).
-      this.stage += (this.targetStage - this.stage) * 0.012; // slow, watchable swell
-      const mask = this.riverMask;
-      for (let k = 0; k < this.N; k++) {
-        const m = mask[k];
-        const dep = m > 0.05 ? m * this.stage : 0;
-        wd[k] = dep;
-        wp[k * 3 + 2] = (this.b[k] + dep) * EXAG;
-      }
+      this.waterGeo.attributes.position.needsUpdate = true;
+      this.waterGeo.attributes.aDepth.needsUpdate = true;
     }
-    this.waterGeo.attributes.position.needsUpdate = true;
-    this.waterGeo.attributes.aDepth.needsUpdate = true;
-    this.waterMat.uniforms.uTime.value = performance.now() * 0.001;
+    this.waterMat.uniforms.uTime.value = now * 0.001;
 
     const raw = (args && args.defaultProjectionData && args.defaultProjectionData.mainMatrix) || args;
     this.camera.projectionMatrix = new THREE.Matrix4().fromArray(raw as number[]).multiply(this.local);
     this.renderer.resetState();
     this.renderer.render(this.scene, this.camera);
-    this.map.triggerRepaint();
+    // Keep the animation loop alive only while the page is visible (no work when
+    // the tab is backgrounded).
+    if (!document.hidden) this.map.triggerRepaint();
   }
 
   onRemove() { this.waterGeo?.dispose(); this.waterMat?.dispose(); }

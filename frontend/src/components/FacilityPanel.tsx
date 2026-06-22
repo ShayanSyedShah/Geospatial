@@ -62,8 +62,8 @@ export default function FacilityPanel({ facility, userLocation, route, onClose }
           </div>
           <div className="source">
             <strong>Facilities</strong>
-            <p>Schools: Giga (ITU/UNICEF) + OpenStreetMap.</p>
-            <p>Clinics: Healthsites.io / OpenStreetMap.</p>
+            <p>Schools: UN OCHA / Bangladesh LGED registry (via HDX).</p>
+            <p>Clinics: UN OCHA / Bangladesh LGED health registry (via HDX).</p>
             <p>“In flood zone” = hazard depth sampled at this point.</p>
           </div>
         </section>

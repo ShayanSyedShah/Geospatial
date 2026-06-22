@@ -10,9 +10,9 @@ interface Props {
  * Full-screen "physics view" — the high-detail, real shallow-water flood
  * simulation for a single hotspot (Sirajganj). It hosts the standalone Three.js
  * Water Lab (frontend/public/waterlab.html) in an iframe so the working
- * simulation is reused as-is, framed with BEACON app chrome.
+ * simulation is reused as-is, framed with Lighthouse app chrome.
  *
- * The national BEACON map stays the command view; this is "zoom into the flood
+ * The national Lighthouse map stays the command view; this is "zoom into the flood
  * zone." More hotspots (Kurigram, Sylhet, …) become additional src files later.
  */
 export default function PhysicsView({ src = '/waterlab.html', place = 'Sirajganj', onClose }: Props) {
