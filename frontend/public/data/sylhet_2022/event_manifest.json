@@ -1,0 +1,148 @@
+﻿{
+    "id":  "sylhet-2022",
+    "title":  "2022 Sylhet Flood",
+    "subtitle":  "Northeast Bangladesh - May-June 2022",
+    "focus":  {
+                  "center":  [
+                                 91.9,
+                                 24.92
+                             ],
+                  "zoom":  8.7,
+                  "pitch":  46,
+                  "bearing":  -10
+              },
+    "dates":  [
+                  {
+                      "date":  "2022-06-16",
+                      "label":  "Bay monsoon",
+                      "mode":  "monsoon",
+                      "floodExtent":  null,
+                      "floodedKm2":  0,
+                      "analyzedKm2":  0,
+                      "camera":  {
+                                     "center":  [
+                                                    90.65,
+                                                    23.35
+                                                ],
+                                     "zoom":  5.95,
+                                     "pitch":  38,
+                                     "bearing":  -12
+                                 },
+                      "showRain":  true,
+                      "statTitle":  "Moisture surge from the Bay of Bengal",
+                      "narration":  "Moist monsoon air moved north from the Bay of Bengal, then rose into the Meghalaya hills above Sylhet. BEACON uses this chain as the forecast signal: upstream rain becomes river surge, then low haor terrain fills."
+                  },
+                  {
+                      "date":  "2022-06-17",
+                      "label":  "Orographic lift",
+                      "mode":  "lift",
+                      "floodExtent":  null,
+                      "floodedKm2":  0,
+                      "analyzedKm2":  0,
+                      "camera":  {
+                                     "center":  [
+                                                    91.55,
+                                                    25.05
+                                                ],
+                                     "zoom":  8.35,
+                                     "pitch":  70,
+                                     "bearing":  -22
+                                 },
+                      "showRain":  true,
+                      "statTitle":  "Air is forced up over the Khasi/Jaintia Hills",
+                      "narration":  "The south-to-north monsoon flow hits the steep Meghalaya escarpment. As the air rises it cools, condenses, and drops intense rain into the upstream catchment feeding Sylhet."
+                  },
+                  {
+                      "date":  "2022-06-17",
+                      "label":  "Extreme rain",
+                      "mode":  "rainburst",
+                      "floodExtent":  null,
+                      "floodedKm2":  0,
+                      "analyzedKm2":  0,
+                      "camera":  {
+                                     "center":  [
+                                                    91.67,
+                                                    25.29
+                                                ],
+                                     "zoom":  9.25,
+                                     "pitch":  72,
+                                     "bearing":  -25
+                                 },
+                      "statTitle":  "Extreme rain over Sohra/Cherrapunji and Mawsynram",
+                      "narration":  "This is where the lifted air unloads. Sohra/Cherrapunji and nearby Mawsynram sit on the windward Khasi Hills, one of the wettest zones on Earth; the rain then drains south into rivers feeding Sylhet."
+                  },
+                  {
+                      "date":  "2022-06-18",
+                      "label":  "River surge",
+                      "mode":  "surge",
+                      "floodExtent":  null,
+                      "floodedKm2":  0,
+                      "analyzedKm2":  0,
+                      "camera":  {
+                                     "center":  [
+                                                    91.9,
+                                                    24.75
+                                                ],
+                                     "zoom":  8.1,
+                                     "pitch":  42,
+                                     "bearing":  -8
+                                 },
+                      "showRain":  false,
+                      "statTitle":  "River surge moves through real channels",
+                      "narration":  "Upstream rain concentrates into the Barak-Surma-Kushiyara river system. Step 4 shows the moving river surge; the floodplain spread comes next."
+                  },
+                  {
+                      "date":  "2022-05-25",
+                      "label":  "Haor basin fills",
+                      "mode":  "flood",
+                      "floodExtent":  "/data/sylhet_2022/flood_extent_2022-05-25.geojson",
+                      "floodedKm2":  420,
+                      "analyzedKm2":  730,
+                      "camera":  {
+                                     "center":  [
+                                                    91.9,
+                                                    24.92
+                                                ],
+                                     "zoom":  8.7,
+                                     "pitch":  46,
+                                     "bearing":  -10
+                                 },
+                      "narration":  "Once the river surge reaches Sylhet and Sunamganj, water spreads across low haor floodplain terrain. This is the first observed UNOSAT water extent (25 May 2022)."
+                  },
+                  {
+                      "date":  "2022-06-18",
+                      "label":  "Peak extent",
+                      "mode":  "flood",
+                      "floodExtent":  null,
+                      "floodedKm2":  840,
+                      "analyzedKm2":  1325,
+                      "camera":  {
+                                     "center":  [
+                                                    91.9,
+                                                    24.92
+                                                ],
+                                     "zoom":  8.7,
+                                     "pitch":  46,
+                                     "bearing":  -10
+                                 },
+                      "statTitle":  "Peak flood after upstream rain",
+                      "narration":  "UNOSAT measured about 840 km2 flooded in the analyzed area after the upstream rain and river surge."
+                  }
+              ],
+    "sources":  [
+                    {
+                        "id":  "event_sources",
+                        "name":  "Real layers: NASA rain, OSM rivers, SRTM terrain, UNOSAT flood observation",
+                        "publisher":  "NASA / OSM / SRTM / UNOSAT",
+                        "type":  "observed + physical context",
+                        "dates":  [
+                                      "2022-06-16",
+                                      "2022-06-17",
+                                      "2022-05-25",
+                                      "2022-06-18"
+                                  ],
+                        "method":  "Rainfall raster, river geometry, elevation model, and satellite-detected flood extent",
+                        "caveat":  "The 3D water is a physical illustration on real terrain; UNOSAT is the observed flood evidence."
+                    }
+                ]
+}
