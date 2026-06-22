@@ -27,6 +27,12 @@ interface Props {
   /** Fired when a protocol target is clicked: a pill (point protocols) or a
    *  district polygon (deconfliction). Receives the raw row / feature props. */
   onSelectTarget?: (props: Record<string, unknown>) => void;
+  /** Sync key of the currently selected/hovered target (id, else district). The
+   *  matching pill / district is highlighted. */
+  selectedKey?: string | null;
+  /** Per-district magnitude (children at risk) for the dimmed scope base. Drawn as a
+   *  district choropleth under the priority markers (point protocols only). */
+  scopeByDistrict?: Record<string, number> | null;
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -173,10 +179,7 @@ const STYLE: maplibregl.StyleSpecification = {
 // each as a labelled HTML pill — the same badge style as the infra markers — so
 // you can read WHAT each recommended location is, not just see a coloured dot.
 const PROTOCOL_RAMP = ['#2c7fb8', '#41b6c4', '#a1dab4', '#fecc5c', '#fd8d3c', '#e31a1c'];
-const PROTOCOL_ICON: Record<string, string> = {
-  supply: '📦', education: '🎓', complaints: '📣', deconfliction: '🔄',
-};
-const MAX_PROTOCOL_MARKERS = 10; // cap so the map stays legible (the panel lists them all)
+const MAX_PROTOCOL_MARKERS = 10; // cap so the map stays legible (the board lists them all)
 
 type ProtoPt = { lng: number; lat: number; props: Record<string, unknown> };
 type ProtoMarker = { lng: number; lat: number; color: string; title: string; sub: string; props: Record<string, unknown> };
@@ -187,8 +190,6 @@ const toNum = (v: unknown): number => {
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : NaN;
 };
-const escapeHtml = (s: string): string =>
-  s.replace(/[&<>"]/g, (c) => (({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c));
 
 function extractPoints(data: unknown): ProtoPt[] {
   const d = data as { type?: string; features?: unknown };
@@ -285,7 +286,41 @@ function buildProtocolMarkers(layer: MapLayer): ProtoMarker[] {
 const DECONF_SOURCE = 'beacon-deconf';
 const DECONF_FILL = 'beacon-deconf-fill';
 const DECONF_OUTLINE = 'beacon-deconf-outline';
+const DECONF_SELECTED = 'beacon-deconf-selected';
 const DECONF_GEOJSON_URL = '/data/sylhet_2022/deconfliction_districts.geojson';
+
+// Scope base: the same 6 district polygons, shaded by per-district magnitude so the
+// whole affected region reads as affected (point protocols). Drawn under the markers.
+const SCOPE_SOURCE = 'beacon-scope';
+const SCOPE_FILL = 'beacon-scope-fill';
+const SCOPE_OUTLINE = 'beacon-scope-outline';
+
+// Sync key for a marker/feature row — must mirror the parent's selKeyOfRow: the
+// row id when present (education/complaints), else the district (supply/deconf).
+const markerKeyOf = (p: Record<string, unknown>): string =>
+  p.id != null ? String(p.id) : String(p.district ?? p.shapeName ?? '');
+
+// Join the district polygons to a per-district magnitude (children at risk) and a
+// sequential blue fill ramp across [min, max].
+function joinScope(geom: GeoJSON.FeatureCollection, mags: Record<string, number>):
+    { fc: GeoJSON.FeatureCollection; color: maplibregl.ExpressionSpecification } {
+  const features = (geom.features ?? []).map((f) => {
+    const p = (f.properties ?? {}) as Record<string, unknown>;
+    const district = String(p.shapeName ?? p.district ?? '');
+    return { ...f, properties: { ...p, district, __mag: mags[district] ?? 0 } };
+  });
+  const vals = Object.values(mags);
+  const min = vals.length ? Math.min(...vals) : 0;
+  const max = vals.length ? Math.max(...vals) : 1;
+  const mid = (min + max) / 2;
+  const lo = min < max ? min : 0;
+  const hi = max > min ? max : 1;
+  const color: maplibregl.ExpressionSpecification = [
+    'interpolate', ['linear'], ['coalesce', ['get', '__mag'], 0],
+    lo, '#0b3550', mid, '#1f6fa8', hi, '#67c2f0',
+  ];
+  return { fc: { type: 'FeatureCollection', features }, color };
+}
 // Fallback status→colour if legend.stops is missing/partial.
 const DECONF_FALLBACK: Record<string, string> = {
   covered: '#2563eb', 'under-served': '#f59e0b', abandoned: '#ef4444',
@@ -333,7 +368,7 @@ function joinDeconf(
 
 /** Self-contained MapLibre map for the 2022 Sylhet event â€” satellite base with the
  *  real UNOSAT flood polygon for the active date drawn on top. */
-export default function SylhetFloodMap({ focus, frames, activeIndex, showRain, protocolLayer, protocolId, onSelectTarget }: Props) {
+export default function SylhetFloodMap({ focus, frames, activeIndex, showRain, protocolLayer, protocolId, onSelectTarget, selectedKey, scopeByDistrict }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const loadedRef = useRef(false);
@@ -345,10 +380,15 @@ export default function SylhetFloodMap({ focus, frames, activeIndex, showRain, p
   const surgeMarkersRef = useRef<maplibregl.Marker[]>([]);
   const dangerMarkersRef = useRef<maplibregl.Marker[]>([]);
   const infraMarkersRef = useRef<maplibregl.Marker[]>([]);
-  const protocolMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const protocolMarkersRef = useRef<Array<{ marker: maplibregl.Marker; el: HTMLDivElement; key: string }>>([]);
   // Latest onSelectTarget, mirrored each render so DOM/map listeners never go stale.
   const selectTargetRef = useRef<Props['onSelectTarget']>(onSelectTarget);
   selectTargetRef.current = onSelectTarget;
+  // Latest selectedKey, so a freshly-built marker can paint its initial selected state.
+  const selectedKeyRef = useRef<string | null | undefined>(selectedKey);
+  selectedKeyRef.current = selectedKey;
+  const scopeRef = useRef<Record<string, number> | null | undefined>(scopeByDistrict);
+  scopeRef.current = scopeByDistrict;
   // De-confliction: cached district polygons + the live click handler so we can
   // attach/detach map.on('click', ...) idempotently across protocol changes.
   const deconfGeomRef = useRef<GeoJSON.FeatureCollection | null>(null);
@@ -752,7 +792,7 @@ fetch('/bgd_adm0.geojson')
       dangerMarkersRef.current = [];
       infraMarkersRef.current.forEach((marker) => marker.remove());
       infraMarkersRef.current = [];
-      protocolMarkersRef.current.forEach((marker) => marker.remove());
+      protocolMarkersRef.current.forEach(({ marker }) => marker.remove());
       protocolMarkersRef.current = [];
       if (surgeAnimRef.current !== null) window.clearInterval(surgeAnimRef.current);
       surgeCameraTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -772,8 +812,10 @@ fetch('/bgd_adm0.geojson')
     const showLift = frame.mode === 'lift';
     const showRainburst = frame.mode === 'rainburst';
     const showSurge = frame.mode === 'surge';
-    const waterLevel = frame.label === 'Haor basin fills' ? 0.95 : (frame.label === 'Peak extent' || frame.mode === 'response') ? 1 : 0;
-    const waterStage = frame.label === 'Haor basin fills' ? 3 : (frame.label === 'Peak extent' || frame.mode === 'response') ? 3 : 0;
+    // Cinematic flood water shows ONLY on the actual flood scenes — never on the
+    // response scene (its light-blue heat/fill blob was leaking onto the decision map).
+    const waterLevel = frame.label === 'Haor basin fills' ? 0.95 : frame.label === 'Peak extent' ? 1 : 0;
+    const waterStage = frame.label === 'Haor basin fills' ? 3 : frame.label === 'Peak extent' ? 3 : 0;
     void waterLevel;
     causeMarkersRef.current.forEach((marker) => {
       marker.getElement().style.display = (showMonsoon || showLift || showRainburst) ? 'block' : 'none';
@@ -846,6 +888,8 @@ fetch('/bgd_adm0.geojson')
     // satellite extent. Step 4 = the surge sim. Turn water off elsewhere.
     if (showSurge) waterLayerRef.current?.setSurge(1);
     else if (!isFloodScene) waterLayerRef.current?.setSurge(0);
+    // Clear the 3D flood water on the response scene (it persists from the flood scenes).
+    if (frame.mode === 'response') waterLayerRef.current?.setFlood(0);
     // The custom three.js water composites on a FLAT map; flatten terrain for it.
     if (typeof map.setTerrain === 'function') {
       try { map.setTerrain((showSurge || isFloodScene) ? null : { source: 'terrain', exaggeration: 1.75 }); } catch (e) { void e; }
@@ -906,7 +950,7 @@ fetch('/bgd_adm0.geojson')
     if (!map) return;
     let cancelled = false;
     const clearPills = () => {
-      protocolMarkersRef.current.forEach((m) => m.remove());
+      protocolMarkersRef.current.forEach(({ marker }) => marker.remove());
       protocolMarkersRef.current = [];
     };
     // Idempotently tear down the de-confliction source + layers + click handler.
@@ -917,12 +961,55 @@ fetch('/bgd_adm0.geojson')
         m.off('click', DECONF_FILL, deconfClickRef.current);
         deconfClickRef.current = null;
       }
+      if (m.getLayer(DECONF_SELECTED)) m.removeLayer(DECONF_SELECTED);
       if (m.getLayer(DECONF_OUTLINE)) m.removeLayer(DECONF_OUTLINE);
       if (m.getLayer(DECONF_FILL)) m.removeLayer(DECONF_FILL);
       if (m.getSource(DECONF_SOURCE)) m.removeSource(DECONF_SOURCE);
     };
 
+    const clearScope = () => {
+      const m = mapRef.current;
+      if (!m) return;
+      if (m.getLayer(SCOPE_OUTLINE)) m.removeLayer(SCOPE_OUTLINE);
+      if (m.getLayer(SCOPE_FILL)) m.removeLayer(SCOPE_FILL);
+      if (m.getSource(SCOPE_SOURCE)) m.removeSource(SCOPE_SOURCE);
+    };
+
     const isDeconf = protocolId === 'deconfliction';
+
+    // Dimmed district SCOPE base (point protocols): shade the 6 districts by
+    // children-at-risk so the map shows the whole affected region under the markers.
+    const runScope = async () => {
+      const m = mapRef.current;
+      const mags = scopeRef.current;
+      if (cancelled || !m || !mags || !Object.keys(mags).length) return;
+      let geom = deconfGeomRef.current;
+      if (!geom) {
+        try {
+          geom = await fetch(DECONF_GEOJSON_URL).then((r) => r.json());
+          deconfGeomRef.current = geom;
+        } catch (err) { console.warn('scope districts load failed', err); return; }
+      }
+      if (cancelled || !mapRef.current || !geom) return;
+      const { fc, color } = joinScope(geom, mags);
+      const existing = m.getSource(SCOPE_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (existing) {
+        existing.setData(fc);
+        if (m.getLayer(SCOPE_FILL)) m.setPaintProperty(SCOPE_FILL, 'fill-color', color);
+        return;
+      }
+      // Insert below the place labels so towns stay readable over the shading.
+      const before = m.getLayer('labels') ? 'labels' : undefined;
+      m.addSource(SCOPE_SOURCE, { type: 'geojson', data: fc });
+      m.addLayer({
+        id: SCOPE_FILL, type: 'fill', source: SCOPE_SOURCE,
+        paint: { 'fill-color': color, 'fill-opacity': 0.38 },
+      }, before);
+      m.addLayer({
+        id: SCOPE_OUTLINE, type: 'line', source: SCOPE_SOURCE,
+        paint: { 'line-color': '#7fe0ff', 'line-width': 1, 'line-opacity': 0.35 },
+      }, before);
+    };
 
     const runDeconf = async () => {
       const m = mapRef.current;
@@ -958,6 +1045,17 @@ fetch('/bgd_adm0.geojson')
           id: DECONF_OUTLINE, type: 'line', source: DECONF_SOURCE,
           paint: { 'line-color': '#0b1220', 'line-width': 1, 'line-opacity': 0.6 },
         });
+        // Bright outline for the currently-selected district (filtered in the
+        // selectedKey effect). Starts matching nothing.
+        m.addLayer({
+          id: DECONF_SELECTED, type: 'line', source: DECONF_SOURCE,
+          paint: { 'line-color': '#ffffff', 'line-width': 2.6, 'line-opacity': 0.95 },
+          filter: ['==', ['get', 'district'], ' '],
+        });
+      }
+      // Reflect any existing selection onto the freshly (re)built layer.
+      if (m.getLayer(DECONF_SELECTED)) {
+        m.setFilter(DECONF_SELECTED, ['==', ['get', 'district'], selectedKeyRef.current ?? ' ']);
       }
       // (Re)wire the click handler + hover cursor on the fill.
       if (deconfClickRef.current) m.off('click', DECONF_FILL, deconfClickRef.current);
@@ -974,37 +1072,50 @@ fetch('/bgd_adm0.geojson')
     const run = () => {
       const m = mapRef.current;
       if (cancelled || !m) return;
-      // Switching away from / clearing the protocol always wipes both renderers.
-      if (!protocolLayer) { clearPills(); clearDeconf(); return; }
-      if (isDeconf) { void runDeconf(); return; }
-      // Point protocol: remove any deconf fill, then (re)build the pills.
+      // Switching away from / clearing the protocol always wipes every renderer.
+      if (!protocolLayer) { clearPills(); clearDeconf(); clearScope(); return; }
+      // De-confliction IS its own district choropleth — no separate scope base.
+      if (isDeconf) { clearScope(); void runDeconf(); return; }
+      // Point protocol: dimmed district scope base + bright minimal priority dots.
       clearDeconf();
       clearPills();
-      const icon = PROTOCOL_ICON[protocolId ?? ''] ?? '📍';
+      void runScope();
+      const selKey = selectedKeyRef.current;
       protocolMarkersRef.current = buildProtocolMarkers(protocolLayer).map((d, i) => {
+        const key = markerKeyOf(d.props);
         const el = document.createElement('div');
-        el.className = 'syl-proto-marker';
+        // Minimal glyph: a coloured dot, NO map label. The name lives in the board;
+        // a native tooltip shows it on hover, full detail on click.
+        el.className = `syl-proto-dot${key && key === selKey ? ' is-selected' : ''}`;
         el.style.setProperty('--c', d.color);
-        el.style.animationDelay = `${(i * 0.09).toFixed(2)}s`; // staggered pop-in
-        el.innerHTML =
-          `<span class="pm-dot"></span><span class="pm-ic">${icon}</span>` +
-          `<b>${escapeHtml(d.title)}</b>` +
-          (d.sub ? `<span class="pm-sub">${escapeHtml(d.sub)}</span>` : '');
-        // Make pills clickable — emit the raw row props for this target. Use the
-        // ref so the listener always calls the latest onSelectTarget.
+        el.style.animationDelay = `${(i * 0.025).toFixed(3)}s`; // quick staggered pop-in
+        el.title = d.sub ? `${d.title} · ${d.sub}` : d.title;
         el.style.pointerEvents = 'auto';
         el.style.cursor = 'pointer';
         el.addEventListener('click', (ev) => {
           ev.stopPropagation();
           selectTargetRef.current?.(d.props);
         });
-        return new maplibregl.Marker({ element: el, anchor: 'left' }).setLngLat([d.lng, d.lat]).addTo(m);
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(m);
+        return { marker, el, key };
       });
     };
     if (loadedRef.current && map.isStyleLoaded()) run();
     else map.once('idle', run);
-    return () => { cancelled = true; clearPills(); clearDeconf(); };
-  }, [protocolLayer, protocolId]);
+    return () => { cancelled = true; clearPills(); clearDeconf(); clearScope(); };
+  }, [protocolLayer, protocolId, scopeByDistrict]);
+
+  // Highlight the selected/hovered target without rebuilding markers: toggle the
+  // pill class, and filter the de-confliction selected-district outline.
+  useEffect(() => {
+    const map = mapRef.current;
+    protocolMarkersRef.current.forEach(({ el, key }) => {
+      el.classList.toggle('is-selected', !!key && key === selectedKey);
+    });
+    if (map && map.getLayer(DECONF_SELECTED)) {
+      map.setFilter(DECONF_SELECTED, ['==', ['get', 'district'], selectedKey ?? ' ']);
+    }
+  }, [selectedKey]);
 
   // zIndex:0 gives the map (and all its HTML markers) its own stacking context, so
   // markers can NEVER paint over the UI boxes (scene bar, response panel, titlebar),
