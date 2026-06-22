@@ -807,6 +807,34 @@ a { color: var(--un-blue-mid); }
 .syl-infra .ic { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
   border-radius: 50%; background: #14304a; font-size: 12px; }
 .syl-infra b { color: #cfe6ff; font-size: 11.5px; font-weight: 600; }
+
+/* UNICEF CCRI panel — real child-risk data live from the GeoSight API. */
+.syl-ccri-panel { position: absolute; top: 64px; right: 12px; z-index: 6; width: 230px;
+  background: rgba(10,22,38,.92); border: 1px solid #1d4ed8; border-radius: 12px; padding: 11px 12px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.5); }
+.syl-ccri-panel .ccri-head strong { display: block; color: #e8f1ff; font-size: 12.5px; }
+.syl-ccri-panel .ccri-head span { color: #6fd0ff; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }
+.syl-ccri-panel .ccri-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin: 9px 0; }
+.syl-ccri-panel .ccri-cell { background: rgba(31,79,168,.22); border: 1px solid #20406a; border-radius: 8px; padding: 6px 4px; text-align: center; cursor: help; }
+.syl-ccri-panel .ccri-cell b { display: block; color: #bfe0ff; font-size: 15px; }
+.syl-ccri-panel .ccri-cell span { color: #9fb1c9; font-size: 9.5px; }
+.syl-ccri-panel .ccri-src { display: block; color: #7fd4ff; font-size: 10.5px; text-decoration: none; margin-top: 2px; }
+
+/* BEACON response protocol + back-test panel (left side). */
+.syl-protocol-panel { position: absolute; left: 12px; top: 64px; z-index: 6; width: 270px;
+  background: rgba(10,22,38,.92); border: 1px solid #1f6feb; border-radius: 12px; padding: 11px 12px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.5); max-height: 70vh; overflow: auto; }
+.syl-protocol-panel .pp-head strong { display: block; color: #e8f1ff; font-size: 13px; }
+.syl-protocol-panel .pp-head span { color: #6fd0ff; font-size: 10px; text-transform: uppercase; letter-spacing: .3px; }
+.syl-protocol-panel .pp-list { margin: 9px 0; padding-left: 18px; }
+.syl-protocol-panel .pp-list li { margin: 6px 0; color: #d7e3f4; font-size: 11.5px; }
+.syl-protocol-panel .pp-list b { color: #bfe0ff; display: block; }
+.syl-protocol-panel .pp-list em { color: #9fb1c9; font-style: normal; display: block; font-size: 10.5px; }
+.syl-protocol-panel .pp-list span { color: #6fd0ff; font-size: 9.5px; }
+.syl-protocol-panel .pp-backtest { border-top: 1px solid #20406a; padding-top: 8px; }
+.syl-protocol-panel .pp-backtest strong { color: #ffd9a8; font-size: 11.5px; display: block; margin-bottom: 4px; }
+.syl-protocol-panel .pp-backtest div { color: #cfe0ff; font-size: 10.8px; margin: 3px 0; }
+.syl-protocol-panel .pp-backtest .ok { color: #7CFC9A; font-weight: 700; }
 .syl-scenebar { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 6;
   background: rgba(9,16,26,.9); border: 1px solid #243650; border-radius: 14px; padding: 12px 14px;
   display: flex; gap: 16px; align-items: stretch; backdrop-filter: blur(8px); }

@@ -1,0 +1,121 @@
+{
+ "method": "UNOSAT 25 May 2022 flood polygon intersected with geoBoundaries ADM3 upazilas; flood_pct = flooded area / upazila area.",
+ "source": "Flood extent: UNOSAT/UNITAR FL20220525BGD. Boundaries: geoBoundaries BGD ADM3.",
+ "upazilas": [
+  {
+   "name": "Companiganj",
+   "tier": 1,
+   "flood_pct": 63.0
+  },
+  {
+   "name": "Gowainghat",
+   "tier": 1,
+   "flood_pct": 32.3
+  },
+  {
+   "name": "Sylhet Sadar",
+   "tier": 2,
+   "flood_pct": 25.0
+  },
+  {
+   "name": "Chhatak",
+   "tier": 1,
+   "flood_pct": 3.4
+  },
+  {
+   "name": "Bishwanath",
+   "tier": 2,
+   "flood_pct": 0.1
+  },
+  {
+   "name": "Ajmiriganj",
+   "tier": 2,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Bishwambarpur",
+   "tier": 1,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Dakshin Sunamganj",
+   "tier": 1,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Derai",
+   "tier": 1,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Dowarabazar",
+   "tier": 1,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Habiganj Sadar",
+   "tier": 2,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Jaintiapur",
+   "tier": 1,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Jamalganj",
+   "tier": 1,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Kanaighat",
+   "tier": 1,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Khaliajuri",
+   "tier": 3,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Kulaura",
+   "tier": 3,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Mohanganj",
+   "tier": 3,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Nabiganj",
+   "tier": 2,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Netrokona Sadar",
+   "tier": 3,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Sunamganj Sadar",
+   "tier": 1,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Tahirpur",
+   "tier": 1,
+   "flood_pct": 0.0
+  },
+  {
+   "name": "Zakiganj",
+   "tier": 2,
+   "flood_pct": 0.0
+  }
+ ],
+ "flagged_count": 18,
+ "flagged_confirmed": 3,
+ "observed_flooded": 3,
+ "observed_that_were_flagged": 3,
+ "precision": 100.0
+}
