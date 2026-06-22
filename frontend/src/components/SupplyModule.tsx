@@ -39,7 +39,7 @@ export default function SupplyModule() {
             <b>{e.naive}%</b>
           </div>
           <div className="eff-row">
-            <span>BEACON optimised</span>
+            <span>Lighthouse optimised</span>
             <div className="eff-bar"><i style={{ width: `${e.optimized}%` }} className="opt" /></div>
             <b>{e.optimized}%</b>
           </div>

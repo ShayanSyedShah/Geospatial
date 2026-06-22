@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { Evidence, Hexagon, TimeHorizon } from '../types';
 import { api } from '../services/api';
-import { riskAtTime, riskLabel, timeLabel } from '../utils/risk';
+import { riskFactors } from '../utils/riskModel';
 
 interface Props {
   hexagon: Hexagon;
   time: number;
+  maxU5: number;
   onClose: () => void;
 }
 
@@ -15,7 +16,19 @@ function horizonForTime(t: number): TimeHorizon {
   return '7d';
 }
 
-export default function EvidencePanel({ hexagon, time, onClose }: Props) {
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+
+function FactorRow({ label, value, meaning, color }: { label: string; value: number; meaning: string; color: string }) {
+  return (
+    <div className="rf-row">
+      <div className="rf-top"><span className="rf-label">{label}</span><span className="rf-val">{pct(value)}</span></div>
+      <div className="rf-bar"><span style={{ width: pct(value), background: color }} /></div>
+      <div className="rf-meaning">{meaning}</div>
+    </div>
+  );
+}
+
+export default function EvidencePanel({ hexagon, time, maxU5, onClose }: Props) {
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [downloading, setDownloading] = useState(false);
 
@@ -24,8 +37,25 @@ export default function EvidencePanel({ hexagon, time, onClose }: Props) {
     api.evidence(hexagon.h3_id).then(setEvidence).catch(() => setEvidence(null));
   }, [hexagon.h3_id]);
 
-  const risk = riskAtTime(hexagon, time);
-  const nearestKm = hexagon.nearest_clinic_m != null ? (hexagon.nearest_clinic_m / 1000).toFixed(1) : null;
+  const f = riskFactors(hexagon, maxU5);
+  const nearestKm = hexagon.nearest_clinic_m != null ? (hexagon.nearest_clinic_m / 1000).toFixed(1) : '—';
+  const tier = f.overall >= 0.66 ? 'high' : f.overall >= 0.33 ? 'moderate' : 'low';
+  const tierWord = tier === 'high' ? 'High' : tier === 'moderate' ? 'Moderate' : 'Lower';
+
+  // which human factor pushes this cell up the most?
+  const amps = [
+    { k: 'the number of people exposed', v: f.exposure },
+    { k: 'being cut off from health care', v: f.access },
+    { k: 'the loss of nearby clinics & schools', v: f.service },
+  ].sort((a, b) => b.v - a.v);
+  const explain =
+    f.hazard < 0.1
+      ? 'This cell barely floods, so its risk stays low whatever else is true.'
+      : tier === 'high'
+        ? `Flooding is likely here and the people in it would be hard to protect — the biggest driver is ${amps[0].k}.`
+        : tier === 'moderate'
+          ? `There is real flood exposure here, amplified mostly by ${amps[0].k}.`
+          : 'There is some flood exposure, but few people or good access keep the overall risk lower.';
 
   const generateBrief = async () => {
     setDownloading(true);
@@ -37,13 +67,12 @@ export default function EvidencePanel({ hexagon, time, onClose }: Props) {
   };
 
   const ff = evidence?.flood_forecast as Record<string, string> | undefined;
-  const pop = evidence?.population as Record<string, string> | undefined;
 
   return (
     <div className="evidence-panel">
       <div className="evidence-header">
         <div>
-          <h2>Evidence Chain</h2>
+          <h2>Why this is {tierWord.toLowerCase()} risk</h2>
           <span className="hexid">{hexagon.district} · {hexagon.h3_id}</span>
         </div>
         <button onClick={onClose} className="close-btn" aria-label="Close">×</button>
@@ -51,44 +80,59 @@ export default function EvidencePanel({ hexagon, time, onClose }: Props) {
 
       <div className="evidence-content">
         <section>
-          <h3>Risk Assessment ({timeLabel(time)})</h3>
-          <div className="metric"><span>Flood risk</span><span className="value risk">{(risk * 100).toFixed(0)}% · {riskLabel(risk)}</span></div>
-          <div className="metric"><span>Children under-5 at risk</span><span className="value">{hexagon.population_u5.toLocaleString()}</span></div>
-          <div className="metric"><span>Nearby health clinics</span><span className="value">{hexagon.nearby_clinics}</span></div>
-          <div className="metric"><span>Nearby schools</span><span className="value">{hexagon.nearby_schools}</span></div>
-          {nearestKm && <div className="metric"><span>Nearest clinic</span><span className="value">{nearestKm} km</span></div>}
+          <div className="risk-headline">
+            <span className={`risk-score ${tier}`}>{pct(f.overall)}</span>
+            <div>
+              <div className={`risk-tier ${tier}`}>{tierWord} risk</div>
+              <div className="risk-sub">composite flood-risk score</div>
+            </div>
+          </div>
+          <p className="risk-explain">{explain}</p>
         </section>
 
         <section>
-          <h3>Data Sources</h3>
+          <h3>What drives it</h3>
+          <FactorRow label="Flood hazard" value={f.hazard} color="#2c84e8"
+            meaning="How likely this place is to flood — JRC/GloFAS return-period maps (rp10/100/500)." />
+          <FactorRow label="People exposed" value={f.exposure} color="#f57d15"
+            meaning={`${hexagon.population_u5.toLocaleString()} children under-5 here (WorldPop).`} />
+          <FactorRow label="Access cut-off" value={f.access} color="#e0457b"
+            meaning={`Nearest clinic is ${nearestKm} km away — further = harder to reach care.`} />
+          <FactorRow label="Service loss" value={f.service} color="#9b51e0"
+            meaning={`${hexagon.nearby_clinics} clinic(s) and ${hexagon.nearby_schools} school(s) within reach.`} />
+          <p className="risk-formula">
+            <strong>Overall = flood hazard × (people + access + service).</strong> Hazard gates the score —
+            no flooding means low risk — and the human factors amplify it. So “high risk” means <em>both</em>{' '}
+            water is likely <em>and</em> the people in it are hard to protect or reach.
+          </p>
+        </section>
+
+        <section>
+          <h3>Data sources</h3>
           <div className="source">
-            <strong>Flood forecast</strong>
-            <p>{ff?.source ?? 'GloFAS / JRC Global Flood Hazard (Copernicus EMS)'}</p>
-            <p>{ff?.model ?? 'LISFLOOD hydrological model'}</p>
-            <p>{ff?.validation ?? '28-year validated lineage'}</p>
+            <strong>Flood hazard</strong>
+            <p>{ff?.source ?? 'JRC Global Flood Hazard / GloFAS (Copernicus EMS)'}</p>
+            <p>Return periods rp10 / rp100 / rp500 · LISFLOOD hydrology</p>
             <a href={(ff?.url as string) ?? 'https://data.jrc.ec.europa.eu/collection/id-0054'} target="_blank" rel="noopener noreferrer">View source →</a>
           </div>
           <div className="source">
             <strong>Population</strong>
-            <p>{pop?.source ?? 'WorldPop 2020 age/sex structures'}</p>
-            <p>{pop?.method ?? 'Under-5 = female/male ages 0 and 1-4'}</p>
-            <p>Resolution: {pop?.resolution ?? '100 m grid'}</p>
-            <a href={(pop?.url as string) ?? 'https://www.worldpop.org'} target="_blank" rel="noopener noreferrer">View source →</a>
+            <p>WorldPop 2020 age/sex structures · under-5 · 100 m grid</p>
+            <a href="https://www.worldpop.org" target="_blank" rel="noopener noreferrer">View source →</a>
           </div>
           <div className="source">
-            <strong>Infrastructure</strong>
-            <p>Schools: {evidence?.infrastructure.schools.source ?? 'UN OCHA / Bangladesh LGED (via HDX)'}</p>
-            <p>Clinics: {evidence?.infrastructure.clinics.source ?? 'UN OCHA / Bangladesh LGED (via HDX)'}</p>
-            <a href={evidence?.infrastructure.clinics.url ?? 'https://data.humdata.org/dataset/bangladesh-health-facilities-by-lged'} target="_blank" rel="noopener noreferrer">View source →</a>
+            <strong>Facilities (access &amp; service)</strong>
+            <p>Schools &amp; clinics: UN OCHA / Bangladesh LGED registry (via HDX)</p>
+            <a href="https://data.humdata.org/dataset/bangladesh-education-facilities-by-lged" target="_blank" rel="noopener noreferrer">View source →</a>
           </div>
         </section>
 
         <section>
-          <h3>Confidence &amp; Decision</h3>
+          <h3>Confidence &amp; decision</h3>
           <p className="uncertainty">Overall uncertainty: ±{((evidence?.overall_uncertainty ?? hexagon.uncertainty) * 100).toFixed(0)}% (95% CI)</p>
-          <p className={`decision ${risk > (evidence?.decision_threshold ?? 0.6) ? 'high' : ''}`}>
-            {evidence?.decision_rule ?? 'If risk > 60%, prioritise evacuation / pre-positioning.'}
-            {risk > (evidence?.decision_threshold ?? 0.6) ? ' — this zone is ABOVE threshold.' : ''}
+          <p className={`decision ${f.overall > 0.6 ? 'high' : ''}`}>
+            Decision rule: if overall risk &gt; 60%, prioritise pre-positioning &amp; evacuation planning.
+            {f.overall > 0.6 ? ' — this zone is ABOVE threshold.' : ''}
           </p>
         </section>
 

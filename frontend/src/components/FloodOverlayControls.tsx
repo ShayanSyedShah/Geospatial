@@ -3,6 +3,9 @@ export interface FloodOverlaySettings {
   showFloodCells: boolean;
   showPopulation: boolean;
   showHumanTerrain: boolean;
+  showPoverty: boolean;
+  showClinics: boolean;
+  showSchools: boolean;
 }
 
 interface Props {
@@ -27,6 +30,15 @@ export default function FloodOverlayControls({ settings, floodedCount, onChange 
         />
         <span>Human terrain</span>
         <em>hides on zoom-in</em>
+      </label>
+      <label className="overlay-toggle">
+        <input
+          type="checkbox"
+          checked={settings.showPoverty}
+          onChange={() => toggle('showPoverty')}
+        />
+        <span>Poverty (wealth)</span>
+        <em>green→red, Meta RWI</em>
       </label>
       <label className="overlay-toggle">
         <input

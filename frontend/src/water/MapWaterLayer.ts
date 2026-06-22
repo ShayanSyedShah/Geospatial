@@ -1,5 +1,5 @@
 // Real shallow-water flood as a MapLibre custom layer — the water physics
-// rendered ON the live BEACON map (geo-aligned over the Sirajganj bbox), not a
+// rendered ON the live Lighthouse map (geo-aligned over the Sirajganj bbox), not a
 // separate view. Virtual-pipes simulation on a real DEM; the resulting water
 // depth is drawn as a translucent, depth-graded surface that sits on the map.
 import * as THREE from 'three';

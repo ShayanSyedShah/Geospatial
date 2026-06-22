@@ -131,7 +131,7 @@ export default function Sylhet2022Module() {
         </aside>
       )}
 
-      {/* BEACON response protocol + back-test against the real 2022 outcome.
+      {/* Lighthouse response protocol + back-test against the real 2022 outcome.
           Actions are ranked by the live UNICEF CCRI scores; the scorecard checks
           the protocol's priority against what actually happened. */}
       {cur?.mode === 'flood' && ccri && (() => {
@@ -145,8 +145,8 @@ export default function Sylhet2022Module() {
           { a: 'WASH — water purification + latrines', who: 'all flooded upazilas', why: `CCRI WASH ${v('wash')}`, score: v('wash') },
         ].sort((x, y) => y.score - x.score);
         return (
-          <aside className="syl-protocol-panel" aria-label="BEACON response protocol">
-            <div className="pp-head"><strong>BEACON Response Protocol</strong><span>auto-generated · ranked by UNICEF CCRI</span></div>
+          <aside className="syl-protocol-panel" aria-label="Lighthouse response protocol">
+            <div className="pp-head"><strong>Lighthouse Response Protocol</strong><span>auto-generated · ranked by UNICEF CCRI</span></div>
             <ol className="pp-list">
               {actions.map((x, i) => (
                 <li key={i}><b>{x.a}</b><em>{x.who}</em><span>{x.why}</span></li>
@@ -157,9 +157,9 @@ export default function Sylhet2022Module() {
               {bt ? (
                 <>
                   {bt.upazilas.filter((u) => u.flood_pct > 5).slice(0, 3).map((u) => (
-                    <div key={u.name}><b>{u.name} {u.flood_pct}%</b> flooded · BEACON tier {u.tier}</div>
+                    <div key={u.name}><b>{u.name} {u.flood_pct}%</b> flooded · Lighthouse tier {u.tier}</div>
                   ))}
-                  <div><span className="ok">{bt.observed_that_were_flagged}/{bt.observed_flooded} observed-flooded upazilas were BEACON-flagged → {bt.precision}% precision</span></div>
+                  <div><span className="ok">{bt.observed_that_were_flagged}/{bt.observed_flooded} observed-flooded upazilas were Lighthouse-flagged → {bt.precision}% precision</span></div>
                   <div className="pp-cite">UNOSAT 25 May ∩ geoBoundaries ADM3 (computed) · context: 7.2M affected (UNICEF SitRep)</div>
                 </>
               ) : <div>computing…</div>}
@@ -178,7 +178,7 @@ export default function Sylhet2022Module() {
 
       {cur?.mode === 'monsoon' && (
         <aside className="syl-predict-panel" aria-label="Prediction model logic">
-          <strong>BEACON forecast logic</strong>
+          <strong>Lighthouse forecast logic</strong>
           <div><b>1</b> Detect upstream rain over Meghalaya</div>
           <div><b>2</b> Route surge through Barak-Surma-Kushiyara</div>
           <div><b>3</b> Fill low haor terrain to estimate flood spread</div>
