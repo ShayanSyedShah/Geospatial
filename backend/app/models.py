@@ -3,6 +3,13 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+# Re-export the protocol contract so callers have one import surface. The
+# canonical definitions live in app.protocols.base / app.scenario.sylhet2022.
+from .protocols.base import (  # noqa: F401
+    MapLayer, Metric, ProtocolResult, Provenance, Target,
+)
+from .scenario.sylhet2022 import ScenarioContext  # noqa: F401
+
 
 class HexagonResponse(BaseModel):
     h3_id: str

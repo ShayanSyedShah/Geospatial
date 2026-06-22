@@ -146,6 +146,70 @@ export interface ConnectResult {
   };
 }
 
+// ---------- BEACON decision-sandbox contract (mirrors backend models.py) ----------
+
+export interface Provenance {
+  id: string;
+  label: string;
+  value: number | string;
+  unit: string;
+  source: string;
+  publisher: string;
+  dcid: string;
+  date: string;
+  url: string;
+  method: string;
+  caveat: string;
+}
+
+export interface Metric {
+  id: string;
+  label: string;
+  value: number | string;
+  unit: string;
+  provenance_id: string;
+}
+
+export interface Target {
+  id: string;
+  name: string;
+  admin_unit: string;
+  rank: number;
+  score: number;
+  metrics: Metric[];
+  lat: number;
+  lng: number;
+}
+
+export interface MapLayer {
+  id: string;
+  kind: 'choropleth' | 'points' | 'path';
+  data: unknown;
+  color_by: string | null;
+  legend: unknown;
+}
+
+export interface ProtocolResult {
+  protocol_id: string;
+  headline: string;
+  summary_metrics: Metric[];
+  targets: Target[];
+  map_layer: MapLayer | null;
+  evidence: Provenance[];
+  caveats: string[];
+}
+
+export interface ScenarioContext {
+  id: string;
+  cells: unknown;
+  facilities: unknown;
+  districts: unknown;
+  flood_extent: unknown;
+  vulnerability: Record<string, unknown>;
+  access_difficulty: Record<string, unknown>;
+  coverage: Record<string, unknown> | null;
+}
+
 export interface Evidence {
   h3_id: string;
   risk: Record<string, number | null>;
