@@ -2,12 +2,14 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const apiProxyTarget = process.env.VITE_DEV_API_PROXY_TARGET ?? 'http://localhost:8001';
+
 // Backend URL injected at build time (VITE_API_URL); defaults to local dev.
 export default defineConfig({
   server: {
     proxy: {
-      '/api': { target: 'http://localhost:8001', changeOrigin: true },
-      '/health': { target: 'http://localhost:8001', changeOrigin: true },
+      '/api': { target: apiProxyTarget, changeOrigin: true },
+      '/health': { target: apiProxyTarget, changeOrigin: true },
     },
   },
   plugins: [
