@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Globe, { type CameraFocus } from './Globe';
 import FacilityPanel from './FacilityPanel';
 import EvidencePanel from './EvidencePanel';
-import type { FloodOverlaySettings } from './FloodOverlayControls';
+import { DEFAULT_LAYERS, deriveOverlay, type LayerCfg } from './layers';
+import type { RiskLens } from '../utils/riskModel';
 import SidePanel from './SidePanel';
 import TopBar from './TopBar';
 import ConnectorModal from './ConnectorModal';
@@ -29,12 +30,9 @@ export default function FloodModule() {
   const [route, setRoute] = useState<EvacRoute | null>(null);
   const [selectedFacility, setSelectedFacility] = useState<Facility | null>(null);
   const [selectedHex, setSelectedHex] = useState<Hexagon | null>(null);
-  const [overlay, setOverlay] = useState<FloodOverlaySettings>({
-    showRiverExtent: false,
-    showFloodCells: false,
-    showPopulation: false,
-    showHumanTerrain: true,
-  });
+  const [layers, setLayers] = useState<LayerCfg[]>(DEFAULT_LAYERS);
+  const [riskLens, setRiskLens] = useState<RiskLens>('overall');
+  const overlay = useMemo(() => deriveOverlay(layers), [layers]);
   const [focus, setFocus] = useState<CameraFocus | null>(null);
   const [time] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -84,12 +82,15 @@ export default function FloodModule() {
 
   useEffect(() => {
     let cancelled = false;
-    const needsFacilities = Boolean(district || userLocation);
+    const showAllFacilities = overlay.showClinics || overlay.showSchools;
+    const needsFacilities = Boolean(district || userLocation || showAllFacilities);
     if (!needsFacilities) {
       setAllFacilities([]);
       return () => { cancelled = true; };
     }
-    api.facilities(country, district)
+    // when the facility layers are on we want ALL of them nationwide, so don't
+    // scope the fetch to a district in that case.
+    api.facilities(country, showAllFacilities ? null : district)
       .then((fc) => { if (!cancelled) setAllFacilities(fc.facilities); })
       .catch((e) => {
         if (!cancelled) {
@@ -98,7 +99,7 @@ export default function FloodModule() {
         }
       });
     return () => { cancelled = true; };
-  }, [country, district, userLocation]);
+  }, [country, district, userLocation, overlay.showClinics, overlay.showSchools]);
 
   useEffect(() => {
     if (!userLocation || !allFacilities.length) { setRoute(null); return; }
@@ -122,6 +123,7 @@ export default function FloodModule() {
 
   const displayedFacilities = useMemo(() => {
     if (userLocation) return allFacilities.filter((f) => haversine(userLocation.lat, userLocation.lng, f.lat, f.lng) < NEARBY_M);
+    if (!district && (overlay.showClinics || overlay.showSchools)) return allFacilities; // show ALL nationwide
     if (district) {
       const exact = allFacilities.filter((f) => f.district === district);
       if (exact.length) return exact;
@@ -135,12 +137,14 @@ export default function FloodModule() {
         .map((x) => x.f);
     }
     return [];
-  }, [allFacilities, district, regions, userLocation]);
+  }, [allFacilities, district, regions, userLocation, overlay.showClinics, overlay.showSchools]);
 
   const floodedCount = useMemo(
     () => hexagons.filter((h) => isFloodedAtTime(h, time)).length,
     [hexagons, time],
   );
+
+  const maxU5 = useMemo(() => Math.max(1, ...hexagons.map((h) => h.population_u5)), [hexagons]);
 
   const depthM = useMemo(() => +(time * MAX_DEPTH_M).toFixed(1), [time]);
 
@@ -169,6 +173,8 @@ export default function FloodModule() {
         hexagons={hexagons}
         floodBounds={floodBounds}
         overlay={overlay}
+        layers={layers}
+        riskLens={riskLens}
         facilities={displayedFacilities}
         userLocation={userLocation}
         route={route}
@@ -203,15 +209,17 @@ export default function FloodModule() {
         onPreset={(lng, lat, label) => setLocation(lng, lat, label)}
         onClearLocation={() => { setUserLocation(null); setRoute(null); }}
         route={route}
-        overlay={overlay}
-        onOverlayChange={setOverlay}
+        layers={layers}
+        onLayersChange={setLayers}
+        riskLens={riskLens}
+        onRiskLensChange={setRiskLens}
         floodedCount={floodedCount}
       />
 
       {error && <div className="toast error">Backend unavailable — {error}</div>}
 
       {selectedHex && (
-        <EvidencePanel hexagon={selectedHex} time={time} onClose={() => setSelectedHex(null)} />
+        <EvidencePanel hexagon={selectedHex} time={time} maxU5={maxU5} onClose={() => setSelectedHex(null)} />
       )}
 
       {selectedFacility && (
