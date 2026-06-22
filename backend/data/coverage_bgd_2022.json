@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "layer": "Response coverage / operational prioritisation — North-East (Sylhet) 2022 flash floods",
+    "purpose": "Coverage side of the de-confliction protocol: where the coordinated response was focused, to compare against modelled need (gap = need - coverage).",
+    "install": "Copy this file to Geospatial/backend/data/coverage_bgd_2022.json, then load it in scenario/sylhet2022.py via a _load_coverage() helper and set ScenarioContext.coverage.",
+    "sources": [
+      {
+        "name": "Flash Floods Humanitarian Response Plan 2022 (UN Bangladesh Coordinated Appeal, Jul-Dec 2022)",
+        "publisher": "Humanitarian Coordination Task Team (HCTT) / UN Bangladesh / OCHA",
+        "date": "2022-07",
+        "url": "https://reliefweb.int/report/bangladesh/flash-floods-humanitarian-response-plan-2022-united-nations-bangladesh-coordinated-appeal-july-december-2022",
+        "used_for": "The nine affected districts and the five heavily-impacted priority districts; the US$58.4M appeal."
+      },
+      {
+        "name": "GAP Analysis: North East Flash Flood Response 2022, NAWG",
+        "publisher": "Needs Assessment Working Group (NAWG), Bangladesh",
+        "date": "2022",
+        "url": "https://reliefweb.int/report/bangladesh/gap-analysis-north-east-flash-flood-response-2022-nawg-bangladesh",
+        "used_for": "Sectoral need-vs-response gap framing; affected-population breakdown; % submerged (Sunamganj 94%, Sylhet 84%)."
+      },
+      {
+        "name": "HCTT Monitoring Dashboard / 4W matrix (response partners and funding by sector)",
+        "publisher": "Humanitarian Coordination Task Team (HCTT)",
+        "date": "2022",
+        "url": "https://reliefweb.int/report/bangladesh/gap-analysis-north-east-flash-flood-response-2022-nawg-bangladesh",
+        "used_for": "Sector-wise response presence and funding gap (referenced; granular per-org 4W counts live in this product as PDF/dashboard — see caveat)."
+      },
+      {
+        "name": "FFWC / MoDMR situation figures",
+        "publisher": "Flood Forecasting & Warning Centre; Ministry of Disaster Management and Relief, Bangladesh",
+        "date": "2022-06",
+        "url": "https://reliefweb.int/report/bangladesh/bangladesh-2022-severe-flash-flood-office-un-resident-coordinator-situation-update-1-19-june-2022",
+        "used_for": "Submergence %, displaced and shelter figures."
+      }
+    ],
+    "method": "Per-district coverage_score is a TRANSPARENT TIER MAP derived from the HCTT Flash Floods HRP 2022 geographic prioritisation: the five districts the HRP names as 'heavily impacted' (Sylhet, Sunamganj, Moulvibazar, Habiganj, Netrakona) are the focus of the coordinated response and scored 1.0; affected districts NOT in that priority set (e.g. Kishoreganj) are scored 0.4 ('secondary'). This captures where the plan concentrated capacity. It is then read against modelled need (exposed under-5 x vulnerability) to surface under-served districts.",
+    "caveat": "coverage_score is a documented TIER mapping from the HRP's stated geographic prioritisation + the national funding gap (23.5% funded) — it is NOT a measured per-organisation 4W partner count. The granular 4W (organisations x sector x district) lives in the HCTT Monitoring Dashboard / 4W matrix as a PDF/dashboard and was not machine-readable at build time. To refine: transcribe the per-sector partner counts from the HCTT 4W matrix into each district's 'partners_by_sector' (left null here) and replace the tier score with normalised partner counts. Do NOT present the tier score as an organisation count.",
+    "coverage_scale": "0..1; 1.0 = HRP priority (heavily-impacted) district, 0.4 = affected secondary district. Higher = more response coverage.",
+    "national_funding": {
+      "appeal_usd": 58400000,
+      "funded_ratio": 0.235,
+      "unmet_ratio": 0.765,
+      "note": "Even priority districts were severely underfunded — the whole appeal closed ~23.5% funded."
+    },
+    "affected_districts_all": [
+      "Sylhet", "Sunamganj", "Moulvibazar", "Habiganj", "Kishoreganj",
+      "Netrakona", "Brahmanbaria", "Mymensingh", "Sherpur"
+    ],
+    "priority_districts": ["Sylhet", "Sunamganj", "Moulvibazar", "Habiganj", "Netrakona"],
+    "scope_note": "Keys below use the pipeline's ADM2 shapeName spellings (e.g. 'Maulvibazar', 'Brahamanbaria') so they join the scenario context. De-confliction reasons over this WIDER affected region (the five HRP priority districts at coverage 1.0 plus the affected-secondary districts at 0.4) — that contrast is what surfaces under-served districts. Supply/Education stay clipped to the tight incident scope (SCENARIO_DISTRICTS)."
+  },
+  "districts": {
+    "Sylhet":      { "tier": "priority",  "hrp_priority": true,  "coverage_score": 1.0, "pct_submerged": 84, "partners_by_sector": null, "sectors_present": ["food_security", "wash", "shelter", "health", "nutrition", "education", "protection"] },
+    "Sunamganj":   { "tier": "priority",  "hrp_priority": true,  "coverage_score": 1.0, "pct_submerged": 94, "partners_by_sector": null, "sectors_present": ["food_security", "wash", "shelter", "health", "nutrition", "education", "protection"] },
+    "Maulvibazar": { "tier": "priority",  "hrp_priority": true,  "coverage_score": 1.0, "partners_by_sector": null, "sectors_present": ["food_security", "wash", "shelter", "health", "nutrition", "education", "protection"] },
+    "Habiganj":    { "tier": "priority",  "hrp_priority": true,  "coverage_score": 1.0, "partners_by_sector": null, "sectors_present": ["food_security", "wash", "shelter", "health", "nutrition", "education", "protection"] },
+    "Netrakona":   { "tier": "priority",  "hrp_priority": true,  "coverage_score": 1.0, "partners_by_sector": null, "sectors_present": ["food_security", "wash", "shelter", "health", "protection"] },
+    "Kishoreganj": { "tier": "secondary", "hrp_priority": false, "coverage_score": 0.4, "partners_by_sector": null, "sectors_present": ["food_security", "wash"], "note": "Affected (one of the nine) but NOT in the HRP's five priority districts." },
+    "Brahamanbaria": { "tier": "secondary", "hrp_priority": false, "coverage_score": 0.4, "partners_by_sector": null, "sectors_present": ["food_security", "wash"], "note": "Affected (Titas/Meghna spillover, one of the nine) but OUTSIDE the HRP's five priority districts, despite high modelled flood exposure — the clearest need-vs-coverage gap." },
+    "Sherpur": { "tier": "secondary", "hrp_priority": false, "coverage_score": 0.4, "partners_by_sector": null, "sectors_present": ["food_security"], "note": "Affected secondary district, not in the HRP priority set; limited modelled exposure." },
+    "Mymensingh": { "tier": "secondary", "hrp_priority": false, "coverage_score": 0.4, "partners_by_sector": null, "sectors_present": ["food_security"], "note": "Listed among affected districts; no cells clear the exposure gate in the modelled footprint, so it does not surface as a need gap." }
+  }
+}

@@ -43,7 +43,6 @@ export class SylhetMapWaterLayer implements maplibregl.CustomLayerInterface {
   private targetStage = 0;
   private stage = 0;
   private mode: 'off' | 'surge' | 'flood' = 'off';
-  private floodMask: Float32Array | null = null; // 1 inside the UNOSAT polygon, soft edge
   private lastFloodFc: unknown = null;           // skip re-rasterising the same extent
   private riverMask!: Float32Array;              // narrow river-width mask (surge stays river-sized)
 
@@ -183,7 +182,7 @@ export class SylhetMapWaterLayer implements maplibregl.CustomLayerInterface {
       }
       out[j * this.NX + i] = s / n;
     }
-    this.floodMask = out;
+    void out; // softened mask computed for parity; not consumed by the current renderer
   }
 
   private smooth(passes: number) {

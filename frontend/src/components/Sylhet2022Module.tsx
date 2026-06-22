@@ -1,11 +1,54 @@
 ﻿import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 import SylhetFloodMap, { type FloodFrame } from './SylhetFloodMap';
+import ProtocolPopup from './ProtocolPopup';
+import EvidencePanel from './EvidencePanel';
+import { useProtocol } from '../hooks/useProtocol';
+import { api } from '../services/api';
+import type { Metric, Provenance, Target } from '../types';
 
 // Real-data cinematic reconstruction of the 2022 Sylhet/Sunamganj flood.
+const PROTOCOL_TABS: { id: string; label: string; caption: string }[] = [
+  { id: 'supply', label: 'Supply', caption: 'Where to pre-position relief first' },
+  { id: 'education', label: 'Education', caption: 'Schools to reopen / relocate' },
+  { id: 'complaints', label: 'Complaints', caption: 'Live field reports by severity' },
+  { id: 'deconfliction', label: 'Deconfliction', caption: 'Coverage gaps between agencies' },
+];
+
+// Read a legend (heterogeneous across protocols) into a flat list of swatches the
+// corner legend can render. Handles categorical legend.values, legend.stops, and a
+// numeric min/max ramp gracefully — never throws on a missing/odd shape.
+interface LegendRow { color: string; label: string }
+function readLegend(legend: unknown): { rows: LegendRow[]; title: string | null } {
+  const l = (legend && typeof legend === 'object' ? legend : {}) as Record<string, unknown>;
+  const title = typeof l.title === 'string' ? l.title : typeof l.label === 'string' ? l.label : null;
+  const rows: LegendRow[] = [];
+  // categorical: { values: { key: color } }
+  if (l.values && typeof l.values === 'object') {
+    for (const [k, v] of Object.entries(l.values as Record<string, unknown>)) {
+      rows.push({ color: String(v), label: k });
+    }
+  }
+  // categorical: { stops: [[label, color], ...] }
+  if (Array.isArray(l.stops)) {
+    for (const s of l.stops as unknown[]) {
+      if (Array.isArray(s) && s.length >= 2) rows.push({ color: String(s[1]), label: String(s[0]) });
+    }
+  }
+  // numeric ramp: { min, max } (no discrete swatches → show the range as a gradient bar)
+  if (!rows.length) {
+    const min = Number(l.min);
+    const max = Number(l.max);
+    if (Number.isFinite(min) && Number.isFinite(max)) {
+      return { rows: [{ color: 'ramp', label: `${min.toLocaleString()} – ${max.toLocaleString()}` }], title };
+    }
+  }
+  return { rows, title };
+}
+
 interface EventDate {
   date: string;
   label: string;
-  mode?: 'monsoon' | 'lift' | 'rainburst' | 'surge' | 'flood';
+  mode?: 'monsoon' | 'lift' | 'rainburst' | 'surge' | 'flood' | 'response';
   floodExtent: string | null;
   floodedKm2: number;
   analyzedKm2: number;
@@ -52,6 +95,15 @@ export default function Sylhet2022Module() {
   const [active, setActive] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [showRain, setShowRain] = useState(false);
+  const [responseTab, setResponseTab] = useState('supply');
+  // Google-Maps response model: the map is the canvas, a thin rail switches the
+  // active protocol, and clicking a target opens a small popup → evidence panel.
+  const { data: result } = useProtocol(responseTab);
+  const [selectedTarget, setSelectedTarget] = useState<
+    { title: string; metrics: Metric[]; evidence: Provenance[] } | null
+  >(null);
+  const [selectedProv, setSelectedProv] = useState<Provenance | null>(null);
+  const [showCaveats, setShowCaveats] = useState(false);
 
   useEffect(() => {
     fetch('/data/sylhet_2022/event_manifest.json')
@@ -80,11 +132,52 @@ export default function Sylhet2022Module() {
   const cur = manifest?.dates[active];
   const src = manifest?.sources[0];
   const effectiveShowRain = showRain;
+  const isResponse = cur?.mode === 'response';
+  const legend = useMemo(() => readLegend(result?.map_layer?.legend), [result]);
+
+  // Clicking a target on the map: match raw props → a full Target per the contract
+  // (props.id by id; else by admin_unit === district/shapeName). Fall back to a
+  // bare popup from the raw props so a stray click never crashes.
+  const handleSelect = (props: Record<string, unknown>) => {
+    const targets: Target[] = result?.targets ?? [];
+    const evidence = result?.evidence ?? [];
+    let target: Target | undefined;
+    if (props.id != null) target = targets.find((t) => t.id === String(props.id));
+    if (!target) {
+      const key = String(props.district ?? props.shapeName ?? '').trim();
+      if (key) target = targets.find((t) => t.admin_unit === key);
+    }
+    if (target) {
+      setSelectedTarget({ title: target.name, metrics: target.metrics, evidence });
+    } else {
+      const title = String(props.name ?? props.district ?? props.shapeName ?? 'Selected area').trim();
+      setSelectedTarget({ title, metrics: [], evidence });
+    }
+  };
+
+  // Resolve a provenance id from the loaded evidence, else fetch it, then open the
+  // EvidencePanel (its provenance mode already exists).
+  const openEvidence = async (provId: string) => {
+    const local = (result?.evidence ?? []).find((p) => p.id === provId);
+    if (local) { setSelectedProv(local); return; }
+    try { setSelectedProv(await api.provenance(provId)); } catch { setSelectedProv(null); }
+  };
+
+  // Reset the open popup/evidence whenever the protocol tab changes.
+  useEffect(() => { setSelectedTarget(null); setSelectedProv(null); setShowCaveats(false); }, [responseTab]);
 
   return (
     <div className="sylhet2022" data-testid="sylhet2022-module">
       {manifest && frames.length > 0 && (
-        <SylhetFloodMap focus={manifest.focus} frames={frames} activeIndex={active} showRain={effectiveShowRain} />
+        <SylhetFloodMap
+          focus={manifest.focus}
+          frames={frames}
+          activeIndex={active}
+          showRain={effectiveShowRain}
+          protocolLayer={isResponse ? result?.map_layer ?? null : null}
+          protocolId={isResponse ? responseTab : null}
+          onSelectTarget={isResponse ? handleSelect : undefined}
+        />
       )}
 
       {(cur?.mode === 'surge' || cur?.mode === 'flood') && (
@@ -135,6 +228,85 @@ export default function Sylhet2022Module() {
           <div><b>Surma + Kushiyara:</b> the Barak splits near the border and routes water west.</div>
           <div><b>Sylhet/Sunamganj:</b> low haor floodplains receive the surge and spread it outward.</div>
         </aside>
+      )}
+
+      {isResponse && (
+        <>
+          {/* DECISION LINE — the single bold verdict for the active protocol. The
+              headline already carries the key numbers, so no extra metric chips. */}
+          <div className="syl-decision-line" role="status">
+            <span className="syl-decision-dot" aria-hidden="true" />
+            <strong>{result?.headline ?? 'Running protocol on Sylhet 2022 peak flood…'}</strong>
+          </div>
+
+          {/* LAYER RAIL — one active protocol at a time (radio behaviour). */}
+          <nav className="syl-layer-rail" aria-label="Response protocols">
+            <span className="syl-rail-title">Decision layer</span>
+            {PROTOCOL_TABS.map((t) => (
+              <button
+                key={t.id}
+                role="radio"
+                aria-checked={responseTab === t.id}
+                className={`syl-rail-toggle ${responseTab === t.id ? 'on' : ''}`}
+                onClick={() => setResponseTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+            <span className="syl-rail-caption">
+              {PROTOCOL_TABS.find((t) => t.id === responseTab)?.caption}
+            </span>
+            <button
+              type="button"
+              className="syl-rail-sources"
+              onClick={() => setShowCaveats((s) => !s)}
+              aria-expanded={showCaveats}
+            >
+              ⓘ sources &amp; caveats
+            </button>
+            {showCaveats && (result?.caveats?.length ?? 0) > 0 && (
+              <ul className="syl-rail-caveats">
+                {result!.caveats.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            )}
+          </nav>
+
+          {/* LEGEND — built from the active layer's legend (categorical or numeric). */}
+          {legend.rows.length > 0 && (
+            <div className="syl-legend" aria-label="Map legend">
+              {legend.title && <span className="syl-legend-title">{legend.title}</span>}
+              {legend.rows.map((r, i) =>
+                r.color === 'ramp' ? (
+                  <div key={i} className="syl-legend-ramp">
+                    <span className="syl-legend-bar" />
+                    <span className="syl-legend-label">{r.label}</span>
+                  </div>
+                ) : (
+                  <div key={i} className="syl-legend-row">
+                    <span className="syl-legend-swatch" style={{ background: r.color }} />
+                    <span className="syl-legend-label">{r.label}</span>
+                  </div>
+                ),
+              )}
+            </div>
+          )}
+
+          {/* POPUP — opened by a map click; <=4 short lines, per-metric source. */}
+          {selectedTarget && (
+            <ProtocolPopup
+              title={selectedTarget.title}
+              metrics={selectedTarget.metrics}
+              evidence={selectedTarget.evidence}
+              onOpenEvidence={openEvidence}
+              onClose={() => setSelectedTarget(null)}
+            />
+          )}
+
+          {/* EVIDENCE — provenance mode (the full source / method / caveat card). */}
+          {selectedProv && (
+            <EvidencePanel provenance={selectedProv} onClose={() => setSelectedProv(null)} />
+          )}
+        </>
       )}
 
       <div className="syl-titlebar">

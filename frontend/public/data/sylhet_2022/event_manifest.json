@@ -127,6 +127,25 @@
                                  },
                       "statTitle":  "Peak flood after upstream rain",
                       "narration":  "UNOSAT measured about 840 km2 flooded in the analyzed area after the upstream rain and river surge."
+                  },
+                  {
+                      "date":  "2022-06-18",
+                      "label":  "Response",
+                      "mode":  "response",
+                      "floodExtent":  null,
+                      "floodedKm2":  840,
+                      "analyzedKm2":  1325,
+                      "camera":  {
+                                     "center":  [
+                                                    91.9,
+                                                    24.92
+                                                ],
+                                     "zoom":  8.7,
+                                     "pitch":  46,
+                                     "bearing":  -10
+                                 },
+                      "statTitle":  "From flood to decision",
+                      "narration":  "The flood is on the ground. Now BEACON runs response protocols on this exact scenario - Supply, Education, Complaints - and ranks where to act first. Every number is clickable and traces back to a verified UN Data Commons source."
                   }
               ],
     "sources":  [

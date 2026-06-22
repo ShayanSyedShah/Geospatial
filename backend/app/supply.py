@@ -6,7 +6,31 @@ priority-weighted allocation to make "optimize" legible.
 """
 from __future__ import annotations
 
+import math
+
 import pandas as pd
+
+# Depot hubs (national logistics staging points) and their coordinates.
+# Distances below are real great-circle distances from the depot to each
+# district centroid — no fabricated figures.
+DEPOTS = {
+    "Bangladesh": {"name": "Dhaka hub", "lat": 23.8103, "lng": 90.4125},
+    "Uganda": {"name": "Kampala hub", "lat": 0.3476, "lng": 32.5825},
+}
+# Indicative ground convoy speed for ETA from distance (planning assumption).
+CONVOY_KMH = 35.0
+# Corridor reach within the response lead time (planning assumption).
+REACH_KM = 200.0
+
+
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Great-circle distance between two points in kilometres."""
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
 
 ITEMS = [
     {"id": "ors", "name": "ORS sachets", "unit": "kits", "stock": 9000},
@@ -31,19 +55,28 @@ def build_supply(df: pd.DataFrame, country: str, district: str | None) -> dict:
         demand = max(1, int(round(exposed * 0.3)))
         # severity weight: high-risk districts matter more per kit delivered
         weight = round(0.5 + max_risk, 3)
+        # real district centroid from the hexagon cells, for true depot distance
+        clat = float(g["lat"].mean())
+        clng = float(g["lng"].mean())
         rows.append({"district": str(name), "children_exposed": exposed,
-                     "max_risk": round(max_risk, 3), "demand": demand, "weight": weight})
+                     "max_risk": round(max_risk, 3), "demand": demand, "weight": weight,
+                     "_lat": clat, "_lng": clng})
     rows.sort(key=lambda r: r["demand"], reverse=True)
     rows = rows[:8]  # focus on the worst-hit for a legible board
 
-    # Routes: the flood severs the long corridors, so far districts get cut off.
-    depots = {"Bangladesh": "Dhaka hub", "Uganda": "Kampala hub"}
-    depot = depots.get(country, "National hub")
+    # Routes: real great-circle distance from the national depot to each
+    # district centroid. Far districts fall outside the corridor reach.
+    depot_cfg = DEPOTS.get(country, {"name": "National hub", "lat": None, "lng": None})
+    depot = depot_cfg["name"]
     routes = []
-    for i, r in enumerate(rows):
-        r["distance_km"] = 40 + i * 22
-        r["eta_h"] = round(1.5 + i * 0.8, 1)
-        r["reachable"] = r["distance_km"] <= 130  # corridor open within lead time
+    for r in rows:
+        if depot_cfg["lat"] is not None:
+            r["distance_km"] = round(
+                _haversine_km(depot_cfg["lat"], depot_cfg["lng"], r["_lat"], r["_lng"]), 1)
+        else:
+            r["distance_km"] = None
+        r["eta_h"] = round(r["distance_km"] / CONVOY_KMH, 1) if r["distance_km"] else None
+        r["reachable"] = bool(r["distance_km"] is not None and r["distance_km"] <= REACH_KM)
         routes.append({
             "depot": depot, "district": r["district"],
             "distance_km": r["distance_km"], "eta_h": r["eta_h"],
@@ -74,6 +107,10 @@ def build_supply(df: pd.DataFrame, country: str, district: str | None) -> dict:
 
     optimized_pct = round(100 * delivered_opt / total_demand, 1)
     naive_pct = round(100 * delivered_naive / total_demand, 1)
+
+    for r in rows:  # drop internal centroid helpers from the response
+        r.pop("_lat", None)
+        r.pop("_lng", None)
 
     return {
         "country": country, "district": district, "items": ITEMS,

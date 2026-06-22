@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react';
-import type { Evidence, Hexagon, TimeHorizon } from '../types';
+import type { Evidence, Hexagon, Provenance, TimeHorizon } from '../types';
 import { api } from '../services/api';
 import { riskAtTime, riskLabel, timeLabel } from '../utils/risk';
 
-interface Props {
+interface FloodProps {
   hexagon: Hexagon;
   time: number;
   onClose: () => void;
 }
+
+interface ProvenanceProps {
+  provenance: Provenance;
+  onClose: () => void;
+}
+
+type Props = FloodProps | ProvenanceProps;
 
 function horizonForTime(t: number): TimeHorizon {
   if (t < 1 / 3) return '4h';
@@ -15,7 +22,60 @@ function horizonForTime(t: number): TimeHorizon {
   return '7d';
 }
 
-export default function EvidencePanel({ hexagon, time, onClose }: Props) {
+export default function EvidencePanel(props: Props) {
+  if ('provenance' in props) {
+    return <ProvenanceView provenance={props.provenance} onClose={props.onClose} />;
+  }
+  return <FloodEvidenceView hexagon={props.hexagon} time={props.time} onClose={props.onClose} />;
+}
+
+// ---------- Protocol provenance mode (any traceable number) ----------
+function ProvenanceView({ provenance, onClose }: ProvenanceProps) {
+  const p = provenance;
+  const valStr = typeof p.value === 'number' ? p.value.toLocaleString() : p.value;
+  return (
+    <div className="evidence-panel">
+      <div className="evidence-header">
+        <div>
+          <h2>Evidence</h2>
+          <span className="hexid">{p.id}</span>
+        </div>
+        <button onClick={onClose} className="close-btn" aria-label="Close">×</button>
+      </div>
+
+      <div className="evidence-content">
+        <section>
+          <div className="prov-value">
+            <b>{valStr}{p.unit ? <em> {p.unit}</em> : null}</b>
+            <span>{p.label}</span>
+          </div>
+        </section>
+
+        <section>
+          <h3>Provenance</h3>
+          <div className="source">
+            <strong>{p.source}</strong>
+            <p><span className="prov-key">Publisher</span> {p.publisher}</p>
+            {p.dcid && <p><span className="prov-key">DCID</span> <code className="prov-dcid">{p.dcid}</code></p>}
+            {p.date && <p><span className="prov-key">Date</span> {p.date}</p>}
+            {p.method && <p><span className="prov-key">Method</span> {p.method}</p>}
+            {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer">View source →</a>}
+          </div>
+        </section>
+
+        {p.caveat && (
+          <section>
+            <h3>Caveat</h3>
+            <p className="decision">{p.caveat}</p>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Original flood hexagon mode (unchanged behaviour) ----------
+function FloodEvidenceView({ hexagon, time, onClose }: FloodProps) {
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [downloading, setDownloading] = useState(false);
 

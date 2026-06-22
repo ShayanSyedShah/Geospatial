@@ -12,10 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
-from . import config, connector, complaints, education, supply
+from . import config, connector, complaints, education, evidence as evidence_registry, supply
 from .brief import build_brief
 from .data_pipeline import DataPipeline
 from .plan import build_plan
+from .protocols import PROTOCOL_IDS, get_protocol
+from .scenario import build_context
 from .models import (
     BriefRequest, ComplaintsResponse, ConnectRequest, CountryResponse, EducationResponse,
     EvidenceResponse, FacilityCollection, FacilityResponse, HexagonCollection,
@@ -144,12 +146,22 @@ async def get_facilities(
                               at_risk=int(sub["at_risk"].sum()), facilities=facilities)
 
 
-@app.get("/api/evidence/{h3_id}", response_model=EvidenceResponse)
-async def get_evidence(h3_id: str):
+@app.get("/api/evidence/{id}")
+async def get_evidence(id: str):
+    """Resolve an id to its evidence.
+
+    Tries the curated provenance registry first (protocol metrics link here),
+    then falls back to the per-hexagon evidence chain (h3_id) so existing
+    callers keep working.
+    """
+    prov = evidence_registry.get_evidence(id)
+    if prov is not None:
+        return prov
+    h3_id = id
     p = _pipeline()
     cell = p.cell(h3_id)
     if cell is None:
-        raise HTTPException(404, f"Hexagon {h3_id} not found")
+        raise HTTPException(404, f"No evidence for '{id}' (unknown provenance id or hexagon)")
     return EvidenceResponse(
         h3_id=h3_id,
         risk={
@@ -190,6 +202,43 @@ async def get_evidence(h3_id: str):
         decision_threshold=config.DECISION_THRESHOLD,
         decision_rule=f"If risk > {int(config.DECISION_THRESHOLD*100)}%, prioritise evacuation / pre-positioning.",
     )
+
+
+@app.get("/api/scenario/sylhet2022/context")
+async def get_scenario_context():
+    """The Sylhet 2022 decision-sandbox context.
+
+    The full cell/access arrays are large, so we return a summary + districts +
+    vulnerability + counts. Protocols consume the full context server-side.
+    """
+    ctx = await run_in_threadpool(build_context)
+    return {
+        "id": ctx.id,
+        "counts": {
+            "cells": len(ctx.cells),
+            "facilities": len(ctx.facilities),
+            "districts": len(ctx.districts),
+        },
+        "flood_extent": ctx.flood_extent,
+        "districts": ctx.districts,
+        "vulnerability": ctx.vulnerability,
+        "vulnerability_meta": ctx.vulnerability_meta,
+        "coverage": ctx.coverage,
+    }
+
+
+@app.get("/api/protocol/{id}")
+async def get_protocol_result(id: str):
+    """Run a response protocol against the Sylhet 2022 scenario."""
+    if id not in PROTOCOL_IDS:
+        raise HTTPException(404, f"Unknown protocol '{id}'. Available: {PROTOCOL_IDS}")
+    ctx = await run_in_threadpool(build_context)
+    try:
+        build = get_protocol(id)
+    except (ImportError, AttributeError) as e:
+        raise HTTPException(503, f"Protocol '{id}' not available: {e}")
+    result = await run_in_threadpool(build, ctx)
+    return result
 
 
 @app.get("/api/stats", response_model=StatsResponse)

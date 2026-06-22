@@ -531,6 +531,14 @@ a { color: var(--un-blue-mid); }
 .btn-primary:hover { background: var(--un-blue-mid); }
 .btn-primary:disabled { opacity: .6; cursor: default; }
 
+/* ---------- Protocol provenance (evidence panel extension) ---------- */
+.prov-value { display: flex; flex-direction: column; gap: 3px; }
+.prov-value b { font-size: 26px; color: var(--un-blue-deep); line-height: 1.1; }
+.prov-value b em { font-size: 14px; font-weight: 600; color: var(--muted); font-style: normal; }
+.prov-value span { font-size: 13px; color: var(--muted); }
+.prov-key { display: inline-block; min-width: 66px; font-weight: 700; color: var(--un-blue-mid); }
+.prov-dcid { font-family: ui-monospace, monospace; font-size: 11px; background: var(--un-tint-2); padding: 1px 5px; border-radius: 4px; color: var(--text); }
+
 /* ---------- Protocols ---------- */
 .protocols { display: flex; flex-direction: column; gap: 6px; }
 .layer-list { display: flex; flex-direction: column; }
@@ -803,10 +811,55 @@ a { color: var(--un-blue-mid); }
 /* Knocked-out infrastructure pins (airport, rail, town). */
 .syl-infra { display: flex; align-items: center; gap: 6px; white-space: nowrap;
   background: rgba(12,18,28,.86); border: 1px solid #355072; border-radius: 18px; padding: 3px 10px 3px 4px;
-  box-shadow: 0 4px 14px rgba(0,0,0,.5); transform: translateX(6px); }
+  box-shadow: 0 4px 14px rgba(0,0,0,.5); transform: translateX(6px);
+  animation: syl-marker-pop .5s cubic-bezier(.2,.9,.3,1.25) both; }
 .syl-infra .ic { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
-  border-radius: 50%; background: #14304a; font-size: 12px; }
+  border-radius: 50%; background: #14304a; font-size: 12px;
+  animation: syl-ic-pulse 2.4s ease-in-out infinite; }
 .syl-infra b { color: #cfe6ff; font-size: 11.5px; font-weight: 600; }
+
+/* Response-protocol target pills — the labelled "where to act" markers, same
+   badge style as .syl-infra. The coloured dot/accent comes from --c (set per
+   marker from the protocol's legend colour). Clickable (Google-Maps model): a
+   click opens the target's popup → evidence chain. */
+.syl-proto-marker { display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  pointer-events: auto; cursor: pointer;
+  background: rgba(12,18,28,.9); border: 1px solid #355072; border-left: 3px solid var(--c, #38bdf8);
+  border-radius: 16px; padding: 3px 10px 3px 7px; box-shadow: 0 4px 14px rgba(0,0,0,.5);
+  transform: translateX(6px);
+  transition: box-shadow .15s ease, border-color .15s ease;
+  /* per-marker stagger comes from an inline animation-delay (set in JS by index) */
+  animation: syl-marker-pop .5s cubic-bezier(.2,.9,.3,1.25) both; }
+.syl-proto-marker:hover { border-color: var(--c, #7fe0ff);
+  box-shadow: 0 8px 22px rgba(0,0,0,.6), 0 0 0 1px var(--c, #38bdf8) inset;
+  translate: 0 -2px; }
+.syl-proto-marker .pm-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--c, #38bdf8); box-shadow: 0 0 8px var(--c, #38bdf8);
+  animation: syl-dot-pulse 2s ease-in-out infinite; }
+.syl-proto-marker .pm-ic { font-size: 12px; }
+.syl-proto-marker b { color: #eaf2fb; font-size: 11.5px; font-weight: 700;
+  max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+.syl-proto-marker .pm-sub { color: #9fc0e0; font-size: 10px; font-weight: 500; }
+
+/* Map-pill entrance + idle pulse (Peak extent infra pills + Response protocol pills).
+   The pop replays whenever a marker (re)enters the DOM / flips from display:none, so
+   Peak extent pops its infra pills in and each protocol tab pops its targets in.
+   IMPORTANT: animate the independent `scale` property (NOT `transform`) — MapLibre
+   owns each marker's `transform` for positioning, so animating `transform` here would
+   yank the markers to the map origin. `scale` composes with MapLibre's transform. */
+@keyframes syl-marker-pop {
+  0%   { opacity: 0; scale: .55; }
+  55%  { opacity: 1; scale: 1.08; }
+  100% { opacity: 1; scale: 1; }
+}
+@keyframes syl-ic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(96,165,250,0); }
+  50%      { box-shadow: 0 0 0 4px rgba(96,165,250,.28); }
+}
+@keyframes syl-dot-pulse {
+  0%, 100% { box-shadow: 0 0 5px var(--c, #38bdf8); }
+  50%      { box-shadow: 0 0 13px var(--c, #38bdf8); }
+}
 .syl-scenebar { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 6;
   background: rgba(9,16,26,.9); border: 1px solid #243650; border-radius: 14px; padding: 12px 14px;
   display: flex; gap: 16px; align-items: stretch; backdrop-filter: blur(8px); }
@@ -1178,6 +1231,158 @@ a { color: var(--un-blue-mid); }
 }
 .syl-surge-panel b {
   color: #bfdbfe;
+}
+
+/* Response scene — Google-Maps decision model. The map IS the canvas; the UI is a
+   thin layer rail (left), an always-visible decision line (top), a corner legend,
+   and click-to-open popups → evidence. Everything sits above the floating map
+   markers but below the EvidencePanel (z-index 40) so click-through still works. */
+
+/* DECISION LINE — pinned top, the active protocol's verdict. Always visible. */
+.syl-decision-line {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(82vw, 880px);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 14px;
+  row-gap: 6px;
+  padding: 10px 18px;
+  border: 1px solid rgba(125, 211, 252, .42);
+  border-radius: 18px;
+  background: rgba(12, 18, 28, .92);
+  color: #eaf3ff;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(10px);
+}
+/* Headline is the priority: it gets a readable minimum and wraps normally
+   (never one-word-per-line); metrics wrap to a second row if they don't fit. */
+.syl-decision-line strong {
+  flex: 1 1 280px; min-width: 240px; line-height: 1.32;
+  font-size: 13px; font-weight: 700; color: #eaf3ff;
+}
+.syl-decision-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+  background: #7fe0ff; box-shadow: 0 0 10px #7fe0ff; }
+.syl-decision-metric {
+  display: inline-flex; align-items: baseline; gap: 5px; flex: 0 0 auto;
+  font-size: 12px; white-space: nowrap; max-width: 240px;
+}
+.syl-decision-metric b { color: #7fe0ff; font-weight: 800; }
+.syl-decision-metric em {
+  font-style: normal; font-weight: 500; color: #9fb1c9;
+  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* LAYER RAIL — one active protocol at a time (radio). */
+.syl-layer-rail {
+  position: absolute;
+  top: 112px;
+  left: 12px;
+  width: 160px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(125, 211, 252, .3);
+  border-radius: 12px;
+  background: rgba(12, 18, 28, .9);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(10px);
+}
+.syl-rail-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .6px; color: #7fe0ff; margin-bottom: 2px; }
+.syl-rail-toggle {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #c7d6ea;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(125, 211, 252, .22);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.syl-rail-toggle:hover { border-color: rgba(125, 211, 252, .5); color: #eaf3ff; }
+.syl-rail-toggle.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.syl-rail-caption { margin-top: 4px; font-size: 10.5px; line-height: 1.4; color: #9fb1c9; }
+.syl-rail-sources {
+  margin-top: 6px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  color: #7fe0ff;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.syl-rail-sources:hover { color: #aef0ff; }
+.syl-rail-caveats { margin: 6px 0 0; padding-left: 16px; }
+.syl-rail-caveats li { font-size: 10.5px; line-height: 1.45; color: #9fb1c9; margin-bottom: 4px; }
+
+/* LEGEND — corner swatches built from the active layer's legend. */
+.syl-legend {
+  position: absolute;
+  right: 12px;
+  bottom: 132px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(125, 211, 252, .3);
+  border-radius: 10px;
+  background: rgba(12, 18, 28, .9);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(10px);
+}
+.syl-legend-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: #7fe0ff; }
+.syl-legend-row, .syl-legend-ramp { display: flex; align-items: center; gap: 8px; }
+.syl-legend-swatch { width: 14px; height: 14px; border-radius: 4px; flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, .25); }
+.syl-legend-bar { width: 60px; height: 8px; border-radius: 4px; flex: 0 0 auto;
+  background: linear-gradient(90deg, #2c7fb8, #41b6c4, #a1dab4, #fecc5c, #fd8d3c, #e31a1c); }
+.syl-legend-label { font-size: 11px; color: #cfe0f2; }
+
+/* PROTOCOL POPUP — opened by a map click; <=4 short lines + per-metric source. */
+.syl-proto-popup {
+  position: absolute;
+  left: 50%;
+  bottom: 132px;
+  transform: translateX(-50%);
+  width: min(88vw, 320px);
+  z-index: 16;
+  padding: 12px 14px;
+  border: 1px solid rgba(125, 211, 252, .42);
+  border-radius: 12px;
+  background: rgba(12, 18, 28, .94);
+  color: #eaf3ff;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, .55);
+  backdrop-filter: blur(10px);
+}
+.syl-proto-popup__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.syl-proto-popup__title { font-size: 14px; font-weight: 700; color: #eaf3ff; }
+.syl-proto-popup__close { background: none; border: none; color: #9fb1c9; font-size: 20px;
+  line-height: 1; cursor: pointer; padding: 0 2px; }
+.syl-proto-popup__close:hover { color: #eaf3ff; }
+.syl-proto-popup__metric { display: flex; align-items: baseline; gap: 6px; width: 100%;
+  margin-top: 8px; padding: 0; text-align: left; background: none; border: none; cursor: pointer; }
+.syl-proto-popup__label { font-size: 12px; color: #9fb1c9; }
+.syl-proto-popup__value { font-size: 12.5px; font-weight: 700; color: #eaf3ff; }
+.syl-proto-popup__source { margin-left: auto; font-size: 10.5px; font-weight: 600; color: #7fe0ff; }
+.syl-proto-popup__metric:hover .syl-proto-popup__source { color: #aef0ff; text-decoration: underline; }
+
+@media (max-width: 1100px) {
+  .syl-layer-rail { top: auto; bottom: 132px; }
+  .syl-decision-line { max-width: calc(100vw - 24px); }
 }
 @media (max-width: 1100px) {
   .syl-waterlab-panel { left: 12px; width: auto; min-width: 0; top: 56px; bottom: 178px; }
