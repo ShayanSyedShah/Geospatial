@@ -27,6 +27,9 @@ interface Props {
   /** Fired when a protocol target is clicked: a pill (point protocols) or a
    *  district polygon (deconfliction). Receives the raw row / feature props. */
   onSelectTarget?: (props: Record<string, unknown>) => void;
+  /** Sync key of the currently selected/hovered target (id, else district). The
+   *  matching pill / district is highlighted. */
+  selectedKey?: string | null;
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -285,7 +288,13 @@ function buildProtocolMarkers(layer: MapLayer): ProtoMarker[] {
 const DECONF_SOURCE = 'beacon-deconf';
 const DECONF_FILL = 'beacon-deconf-fill';
 const DECONF_OUTLINE = 'beacon-deconf-outline';
+const DECONF_SELECTED = 'beacon-deconf-selected';
 const DECONF_GEOJSON_URL = '/data/sylhet_2022/deconfliction_districts.geojson';
+
+// Sync key for a marker/feature row — must mirror the parent's selKeyOfRow: the
+// row id when present (education/complaints), else the district (supply/deconf).
+const markerKeyOf = (p: Record<string, unknown>): string =>
+  p.id != null ? String(p.id) : String(p.district ?? p.shapeName ?? '');
 // Fallback status→colour if legend.stops is missing/partial.
 const DECONF_FALLBACK: Record<string, string> = {
   covered: '#2563eb', 'under-served': '#f59e0b', abandoned: '#ef4444',
@@ -333,7 +342,7 @@ function joinDeconf(
 
 /** Self-contained MapLibre map for the 2022 Sylhet event â€” satellite base with the
  *  real UNOSAT flood polygon for the active date drawn on top. */
-export default function SylhetFloodMap({ focus, frames, activeIndex, showRain, protocolLayer, protocolId, onSelectTarget }: Props) {
+export default function SylhetFloodMap({ focus, frames, activeIndex, showRain, protocolLayer, protocolId, onSelectTarget, selectedKey }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const loadedRef = useRef(false);
@@ -345,10 +354,13 @@ export default function SylhetFloodMap({ focus, frames, activeIndex, showRain, p
   const surgeMarkersRef = useRef<maplibregl.Marker[]>([]);
   const dangerMarkersRef = useRef<maplibregl.Marker[]>([]);
   const infraMarkersRef = useRef<maplibregl.Marker[]>([]);
-  const protocolMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const protocolMarkersRef = useRef<Array<{ marker: maplibregl.Marker; el: HTMLDivElement; key: string }>>([]);
   // Latest onSelectTarget, mirrored each render so DOM/map listeners never go stale.
   const selectTargetRef = useRef<Props['onSelectTarget']>(onSelectTarget);
   selectTargetRef.current = onSelectTarget;
+  // Latest selectedKey, so a freshly-built marker can paint its initial selected state.
+  const selectedKeyRef = useRef<string | null | undefined>(selectedKey);
+  selectedKeyRef.current = selectedKey;
   // De-confliction: cached district polygons + the live click handler so we can
   // attach/detach map.on('click', ...) idempotently across protocol changes.
   const deconfGeomRef = useRef<GeoJSON.FeatureCollection | null>(null);
@@ -752,7 +764,7 @@ fetch('/bgd_adm0.geojson')
       dangerMarkersRef.current = [];
       infraMarkersRef.current.forEach((marker) => marker.remove());
       infraMarkersRef.current = [];
-      protocolMarkersRef.current.forEach((marker) => marker.remove());
+      protocolMarkersRef.current.forEach(({ marker }) => marker.remove());
       protocolMarkersRef.current = [];
       if (surgeAnimRef.current !== null) window.clearInterval(surgeAnimRef.current);
       surgeCameraTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -906,7 +918,7 @@ fetch('/bgd_adm0.geojson')
     if (!map) return;
     let cancelled = false;
     const clearPills = () => {
-      protocolMarkersRef.current.forEach((m) => m.remove());
+      protocolMarkersRef.current.forEach(({ marker }) => marker.remove());
       protocolMarkersRef.current = [];
     };
     // Idempotently tear down the de-confliction source + layers + click handler.
@@ -917,6 +929,7 @@ fetch('/bgd_adm0.geojson')
         m.off('click', DECONF_FILL, deconfClickRef.current);
         deconfClickRef.current = null;
       }
+      if (m.getLayer(DECONF_SELECTED)) m.removeLayer(DECONF_SELECTED);
       if (m.getLayer(DECONF_OUTLINE)) m.removeLayer(DECONF_OUTLINE);
       if (m.getLayer(DECONF_FILL)) m.removeLayer(DECONF_FILL);
       if (m.getSource(DECONF_SOURCE)) m.removeSource(DECONF_SOURCE);
@@ -958,6 +971,17 @@ fetch('/bgd_adm0.geojson')
           id: DECONF_OUTLINE, type: 'line', source: DECONF_SOURCE,
           paint: { 'line-color': '#0b1220', 'line-width': 1, 'line-opacity': 0.6 },
         });
+        // Bright outline for the currently-selected district (filtered in the
+        // selectedKey effect). Starts matching nothing.
+        m.addLayer({
+          id: DECONF_SELECTED, type: 'line', source: DECONF_SOURCE,
+          paint: { 'line-color': '#ffffff', 'line-width': 2.6, 'line-opacity': 0.95 },
+          filter: ['==', ['get', 'district'], ' '],
+        });
+      }
+      // Reflect any existing selection onto the freshly (re)built layer.
+      if (m.getLayer(DECONF_SELECTED)) {
+        m.setFilter(DECONF_SELECTED, ['==', ['get', 'district'], selectedKeyRef.current ?? ' ']);
       }
       // (Re)wire the click handler + hover cursor on the fill.
       if (deconfClickRef.current) m.off('click', DECONF_FILL, deconfClickRef.current);
@@ -981,9 +1005,11 @@ fetch('/bgd_adm0.geojson')
       clearDeconf();
       clearPills();
       const icon = PROTOCOL_ICON[protocolId ?? ''] ?? '📍';
+      const selKey = selectedKeyRef.current;
       protocolMarkersRef.current = buildProtocolMarkers(protocolLayer).map((d, i) => {
+        const key = markerKeyOf(d.props);
         const el = document.createElement('div');
-        el.className = 'syl-proto-marker';
+        el.className = `syl-proto-marker${key && key === selKey ? ' is-selected' : ''}`;
         el.style.setProperty('--c', d.color);
         el.style.animationDelay = `${(i * 0.09).toFixed(2)}s`; // staggered pop-in
         el.innerHTML =
@@ -998,13 +1024,26 @@ fetch('/bgd_adm0.geojson')
           ev.stopPropagation();
           selectTargetRef.current?.(d.props);
         });
-        return new maplibregl.Marker({ element: el, anchor: 'left' }).setLngLat([d.lng, d.lat]).addTo(m);
+        const marker = new maplibregl.Marker({ element: el, anchor: 'left' }).setLngLat([d.lng, d.lat]).addTo(m);
+        return { marker, el, key };
       });
     };
     if (loadedRef.current && map.isStyleLoaded()) run();
     else map.once('idle', run);
     return () => { cancelled = true; clearPills(); clearDeconf(); };
   }, [protocolLayer, protocolId]);
+
+  // Highlight the selected/hovered target without rebuilding markers: toggle the
+  // pill class, and filter the de-confliction selected-district outline.
+  useEffect(() => {
+    const map = mapRef.current;
+    protocolMarkersRef.current.forEach(({ el, key }) => {
+      el.classList.toggle('is-selected', !!key && key === selectedKey);
+    });
+    if (map && map.getLayer(DECONF_SELECTED)) {
+      map.setFilter(DECONF_SELECTED, ['==', ['get', 'district'], selectedKey ?? ' ']);
+    }
+  }, [selectedKey]);
 
   // zIndex:0 gives the map (and all its HTML markers) its own stacking context, so
   // markers can NEVER paint over the UI boxes (scene bar, response panel, titlebar),
