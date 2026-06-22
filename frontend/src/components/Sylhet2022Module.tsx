@@ -1,10 +1,27 @@
 ﻿import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 import SylhetFloodMap, { type FloodFrame } from './SylhetFloodMap';
 import ProtocolPopup from './ProtocolPopup';
+import ProtocolBoard, { type BoardItem } from './ProtocolBoard';
 import EvidencePanel from './EvidencePanel';
 import { useProtocol } from '../hooks/useProtocol';
 import { api } from '../services/api';
 import type { Metric, Provenance, Target } from '../types';
+
+// Normalise a protocol map_layer.data (FeatureCollection OR plain row array) into a
+// flat list of property rows, and derive the per-row sync key shared with the map:
+// the row id when present (education/complaints), else the district (supply/deconf).
+function rowsOf(data: unknown): Record<string, unknown>[] {
+  const d = data as { type?: string; features?: unknown };
+  if (d && d.type === 'FeatureCollection' && Array.isArray(d.features)) {
+    return (d.features as Array<Record<string, unknown>>).map((f) => ({
+      ...((f.properties as Record<string, unknown>) ?? {}),
+    }));
+  }
+  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  return [];
+}
+const selKeyOfRow = (p: Record<string, unknown>): string =>
+  p.id != null ? String(p.id) : String(p.district ?? p.shapeName ?? '');
 
 // Real-data cinematic reconstruction of the 2022 Sylhet/Sunamganj flood.
 const PROTOCOL_TABS: { id: string; label: string; caption: string }[] = [
@@ -108,6 +125,13 @@ export default function Sylhet2022Module() {
   >(null);
   const [selectedProv, setSelectedProv] = useState<Provenance | null>(null);
   const [showCaveats, setShowCaveats] = useState(false);
+  // Shared selection across the board + map. `selectedKey` is sticky (click);
+  // `hoveredKey` is transient (board hover). The map highlights hovered ?? selected.
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  // Per-district magnitude (children at risk) for the dimmed map SCOPE base — the
+  // whole affected region, so the map never looks empty. Same for every protocol.
+  const [scopeByDistrict, setScopeByDistrict] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
     fetch('/data/sylhet_2022/event_manifest.json')
@@ -122,6 +146,18 @@ export default function Sylhet2022Module() {
       .then((r) => r.json())
       .then(setBt)
       .catch(() => {});
+  }, []);
+
+  // Scenario context → per-district children-at-risk for the map scope base.
+  useEffect(() => {
+    fetch('/api/scenario/sylhet2022/context')
+      .then((r) => r.json())
+      .then((c: { districts?: Array<{ district: string; children_at_risk: number }> }) => {
+        const m: Record<string, number> = {};
+        for (const d of c.districts ?? []) m[d.district] = Number(d.children_at_risk) || 0;
+        setScopeByDistrict(m);
+      })
+      .catch(() => setScopeByDistrict(null));
   }, []);
 
   useEffect(() => {
@@ -146,25 +182,58 @@ export default function Sylhet2022Module() {
   const effectiveShowRain = showRain;
   const isResponse = cur?.mode === 'response';
   const legend = useMemo(() => readLegend(result?.map_layer?.legend), [result]);
+  // Magnitude range for the scope-base legend (point protocols; deconfliction uses
+  // its own status choropleth instead).
+  const scopeRange = useMemo(() => {
+    const vals = Object.values(scopeByDistrict ?? {});
+    if (!vals.length || responseTab === 'deconfliction') return null;
+    return { min: Math.min(...vals), max: Math.max(...vals) };
+  }, [scopeByDistrict, responseTab]);
 
-  // Clicking a target on the map: match raw props → a full Target per the contract
-  // (props.id by id; else by admin_unit === district/shapeName). Fall back to a
-  // bare popup from the raw props so a stray click never crashes.
-  const handleSelect = (props: Record<string, unknown>) => {
+  // Board rows = the ranked targets, each tagged with the shared sync key + the
+  // status from its map_layer row + one key metric. Same key the map markers use.
+  const board = useMemo(() => {
     const targets: Target[] = result?.targets ?? [];
-    const evidence = result?.evidence ?? [];
+    const rows = rowsOf(result?.map_layer?.data);
+    const rowsHaveId = rows.some((r) => r.id != null);
+    const keyOfTarget = (t: Target) => (rowsHaveId ? String(t.id) : String(t.admin_unit));
+    const statusByKey: Record<string, string> = {};
+    for (const r of rows) {
+      const k = selKeyOfRow(r);
+      const st = (r.status ?? r.severity) as unknown;
+      if (k && st != null) statusByKey[k] = String(st);
+    }
+    const items: BoardItem[] = targets.map((t) => {
+      const key = keyOfTarget(t);
+      return { key, target: t, status: statusByKey[key] ?? null, metric: t.metrics?.[0] ?? null };
+    });
+    // Always show the surfaced markers in priority order on the side board.
+    items.sort((a, b) => (a.target.rank ?? 1e9) - (b.target.rank ?? 1e9));
+    return { items };
+  }, [result]);
+
+  const openTarget = (target: Target) =>
+    setSelectedTarget({ title: target.name, metrics: target.metrics, evidence: result?.evidence ?? [] });
+
+  // Click a board row: sticky-select it (drives the map highlight) and open detail.
+  const handleBoardSelect = (item: BoardItem) => { setSelectedKey(item.key); openTarget(item.target); };
+
+  // Click a map marker/district: match raw props → a full Target (props.id by id;
+  // else by admin_unit === district/shapeName), set the shared key, open detail.
+  const handleSelect = (props: Record<string, unknown>) => {
+    setSelectedKey(selKeyOfRow(props));
+    const targets: Target[] = result?.targets ?? [];
     let target: Target | undefined;
     if (props.id != null) target = targets.find((t) => t.id === String(props.id));
     if (!target) {
       const key = String(props.district ?? props.shapeName ?? '').trim();
       if (key) target = targets.find((t) => t.admin_unit === key);
     }
-    if (target) {
-      setSelectedTarget({ title: target.name, metrics: target.metrics, evidence });
-    } else {
-      const title = String(props.name ?? props.district ?? props.shapeName ?? 'Selected area').trim();
-      setSelectedTarget({ title, metrics: [], evidence });
-    }
+    if (target) openTarget(target);
+    else setSelectedTarget({
+      title: String(props.name ?? props.district ?? props.shapeName ?? 'Selected area').trim(),
+      metrics: [], evidence: result?.evidence ?? [],
+    });
   };
 
   // Resolve a provenance id from the loaded evidence, else fetch it, then open the
@@ -175,8 +244,11 @@ export default function Sylhet2022Module() {
     try { setSelectedProv(await api.provenance(provId)); } catch { setSelectedProv(null); }
   };
 
-  // Reset the open popup/evidence whenever the protocol tab changes.
-  useEffect(() => { setSelectedTarget(null); setSelectedProv(null); setShowCaveats(false); }, [responseTab]);
+  // Reset the selection/popup/evidence whenever the protocol tab changes.
+  useEffect(() => {
+    setSelectedTarget(null); setSelectedProv(null); setShowCaveats(false);
+    setSelectedKey(null); setHoveredKey(null);
+  }, [responseTab]);
 
   return (
     <div className="sylhet2022" data-testid="sylhet2022-module">
@@ -189,6 +261,8 @@ export default function Sylhet2022Module() {
           protocolLayer={isResponse ? result?.map_layer ?? null : null}
           protocolId={isResponse ? responseTab : null}
           onSelectTarget={isResponse ? handleSelect : undefined}
+          selectedKey={isResponse ? (hoveredKey ?? selectedKey) : null}
+          scopeByDistrict={isResponse ? scopeByDistrict : null}
         />
       )}
 
@@ -348,10 +422,22 @@ export default function Sylhet2022Module() {
             )}
           </nav>
 
-          {/* LEGEND — built from the active layer's legend (categorical or numeric). */}
-          {legend.rows.length > 0 && (
+          {/* LEGEND — district scope shading (magnitude) + the priority markers. */}
+          {(legend.rows.length > 0 || scopeRange) && (
             <div className="syl-legend" aria-label="Map legend">
-              {legend.title && <span className="syl-legend-title">{legend.title}</span>}
+              {scopeRange && (
+                <div className="syl-legend-scope">
+                  <span className="syl-legend-title">District scope · children at risk</span>
+                  <div className="syl-legend-ramp">
+                    <span className="syl-legend-bar scope" />
+                    <span className="syl-legend-label">
+                      {scopeRange.min.toLocaleString()} – {scopeRange.max.toLocaleString()}
+                    </span>
+                  </div>
+                  <span className="syl-legend-title" style={{ marginTop: 6 }}>Priority markers</span>
+                </div>
+              )}
+              {legend.title && !scopeRange && <span className="syl-legend-title">{legend.title}</span>}
               {legend.rows.map((r, i) =>
                 r.color === 'ramp' ? (
                   <div key={i} className="syl-legend-ramp">
@@ -367,6 +453,16 @@ export default function Sylhet2022Module() {
               )}
             </div>
           )}
+
+          {/* BOARD — right pane: the active protocol's targets as a ranked
+              leaderboard, synced with the map via selectedKey. */}
+          <ProtocolBoard
+            title={PROTOCOL_TABS.find((t) => t.id === responseTab)?.label ?? 'Targets'}
+            items={board.items}
+            selectedKey={selectedKey}
+            onHover={setHoveredKey}
+            onSelect={handleBoardSelect}
+          />
 
           {/* POPUP — opened by a map click; <=4 short lines, per-metric source. */}
           {selectedTarget && (
