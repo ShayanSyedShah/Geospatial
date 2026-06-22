@@ -1351,7 +1351,24 @@ a { color: var(--un-blue-mid); }
   border: 1px solid rgba(255, 255, 255, .25); }
 .syl-legend-bar { width: 60px; height: 8px; border-radius: 4px; flex: 0 0 auto;
   background: linear-gradient(90deg, #2c7fb8, #41b6c4, #a1dab4, #fecc5c, #fd8d3c, #e31a1c); }
+.syl-legend-bar.scope { background: linear-gradient(90deg, #0b3550, #1f6fa8, #67c2f0); }
 .syl-legend-label { font-size: 11px; color: #cfe0f2; }
+.syl-legend-scope { display: flex; flex-direction: column; gap: 6px; }
+
+/* Minimal priority marker — a coloured dot, no map label (names live in the board).
+   Highlighted when it matches the shared selection. */
+.syl-proto-dot {
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--c, #38bdf8);
+  border: 2px solid rgba(255, 255, 255, .92);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .55), 0 0 8px var(--c, #38bdf8);
+  animation: syl-marker-pop .24s cubic-bezier(.2, .9, .3, 1.25) both;
+}
+.syl-proto-dot.is-selected {
+  width: 21px; height: 21px;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .92), 0 3px 12px rgba(0, 0, 0, .6), 0 0 12px var(--c, #38bdf8);
+  z-index: 3;
+}
 
 /* ANALYTICS BOARD — right pane: the active protocol's targets as a ranked
    leaderboard, one line per row, synced with the map via selectedKey. */

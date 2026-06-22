@@ -125,12 +125,27 @@ export default function Sylhet2022Module() {
   // `hoveredKey` is transient (board hover). The map highlights hovered ?? selected.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  // Per-district magnitude (children at risk) for the dimmed map SCOPE base — the
+  // whole affected region, so the map never looks empty. Same for every protocol.
+  const [scopeByDistrict, setScopeByDistrict] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
     fetch('/data/sylhet_2022/event_manifest.json')
       .then((r) => r.json())
       .then((m: EventManifest) => setManifest(m))
       .catch((e) => setError(String(e)));
+  }, []);
+
+  // Scenario context → per-district children-at-risk for the map scope base.
+  useEffect(() => {
+    fetch('/api/scenario/sylhet2022/context')
+      .then((r) => r.json())
+      .then((c: { districts?: Array<{ district: string; children_at_risk: number }> }) => {
+        const m: Record<string, number> = {};
+        for (const d of c.districts ?? []) m[d.district] = Number(d.children_at_risk) || 0;
+        setScopeByDistrict(m);
+      })
+      .catch(() => setScopeByDistrict(null));
   }, []);
 
   useEffect(() => {
@@ -155,6 +170,13 @@ export default function Sylhet2022Module() {
   const effectiveShowRain = showRain;
   const isResponse = cur?.mode === 'response';
   const legend = useMemo(() => readLegend(result?.map_layer?.legend), [result]);
+  // Magnitude range for the scope-base legend (point protocols; deconfliction uses
+  // its own status choropleth instead).
+  const scopeRange = useMemo(() => {
+    const vals = Object.values(scopeByDistrict ?? {});
+    if (!vals.length || responseTab === 'deconfliction') return null;
+    return { min: Math.min(...vals), max: Math.max(...vals) };
+  }, [scopeByDistrict, responseTab]);
 
   // Board rows = the ranked targets, each tagged with the shared sync key + the
   // status from its map_layer row + one key metric. Same key the map markers use.
@@ -173,6 +195,8 @@ export default function Sylhet2022Module() {
       const key = keyOfTarget(t);
       return { key, target: t, status: statusByKey[key] ?? null, metric: t.metrics?.[0] ?? null };
     });
+    // Always show the surfaced markers in priority order on the side board.
+    items.sort((a, b) => (a.target.rank ?? 1e9) - (b.target.rank ?? 1e9));
     return { items };
   }, [result]);
 
@@ -226,6 +250,7 @@ export default function Sylhet2022Module() {
           protocolId={isResponse ? responseTab : null}
           onSelectTarget={isResponse ? handleSelect : undefined}
           selectedKey={isResponse ? (hoveredKey ?? selectedKey) : null}
+          scopeByDistrict={isResponse ? scopeByDistrict : null}
         />
       )}
 
@@ -320,10 +345,22 @@ export default function Sylhet2022Module() {
             )}
           </nav>
 
-          {/* LEGEND — built from the active layer's legend (categorical or numeric). */}
-          {legend.rows.length > 0 && (
+          {/* LEGEND — district scope shading (magnitude) + the priority markers. */}
+          {(legend.rows.length > 0 || scopeRange) && (
             <div className="syl-legend" aria-label="Map legend">
-              {legend.title && <span className="syl-legend-title">{legend.title}</span>}
+              {scopeRange && (
+                <div className="syl-legend-scope">
+                  <span className="syl-legend-title">District scope · children at risk</span>
+                  <div className="syl-legend-ramp">
+                    <span className="syl-legend-bar scope" />
+                    <span className="syl-legend-label">
+                      {scopeRange.min.toLocaleString()} – {scopeRange.max.toLocaleString()}
+                    </span>
+                  </div>
+                  <span className="syl-legend-title" style={{ marginTop: 6 }}>Priority markers</span>
+                </div>
+              )}
+              {legend.title && !scopeRange && <span className="syl-legend-title">{legend.title}</span>}
               {legend.rows.map((r, i) =>
                 r.color === 'ramp' ? (
                   <div key={i} className="syl-legend-ramp">
