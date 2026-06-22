@@ -64,17 +64,6 @@ export default function SidePanel({
   const presets = PRESETS[country] ?? [];
   const dot = <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#009EDB', display: 'inline-block' }} />;
 
-  // Protocol checklist derived from the live situation.
-  const protocols = useMemo(() => {
-    const items: { id: string; label: string; urgent: boolean }[] = [];
-    items.push({ id: 'supplies', label: `Pre-position relief supplies for ~${live.exposed.toLocaleString()} exposed under-5s`, urgent: live.high > 0 });
-    items.push({ id: 'water', label: 'Stage water-purification units', urgent: false });
-    items.push({ id: 'cold', label: 'Protect cold chain at at-risk clinics', urgent: false });
-    items.push({ id: 'evac', label: 'Confirm evacuation centres above flood line', urgent: false });
-    return items;
-  }, [live.exposed, live.high]);
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-
   return (
     <>
       <button
@@ -117,18 +106,6 @@ export default function SidePanel({
             </div>
           </div>
         )}
-      </Section>
-
-      <Section title="Protocols" icon={dot} defaultOpen badge={protocols.filter((p) => p.urgent).length || null}>
-        <div className="protocols">
-          {protocols.map((p) => (
-            <label key={p.id} className={`protocol ${checked[p.id] ? 'done' : ''} ${p.urgent ? 'urgent' : ''}`}>
-              <input type="checkbox" checked={!!checked[p.id]} onChange={() => setChecked((c) => ({ ...c, [p.id]: !c[p.id] }))} />
-              <span>{p.label}</span>
-              {p.urgent && !checked[p.id] && <em>now</em>}
-            </label>
-          ))}
-        </div>
       </Section>
 
       <Section title="Map layers" icon={dot} defaultOpen={true}>
