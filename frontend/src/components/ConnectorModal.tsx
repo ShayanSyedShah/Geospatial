@@ -107,7 +107,7 @@ export default function ConnectorModal({ country, onClose }: Props) {
 
           {!file && (
             <p className="conn-hint">
-              Today a data engineer spends days hand-joining these. BEACON does the still-manual
+              Today a data engineer spends days hand-joining these. Lighthouse does the still-manual
               parts — AI column-mapping, fuzzy place resolution — in seconds, offline.
             </p>
           )}
