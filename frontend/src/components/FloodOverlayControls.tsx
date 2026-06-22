@@ -1,6 +1,8 @@
 export interface FloodOverlaySettings {
   showRiverExtent: boolean;
   showFloodCells: boolean;
+  showPopulation: boolean;
+  showHumanTerrain: boolean;
 }
 
 interface Props {
@@ -16,14 +18,23 @@ export default function FloodOverlayControls({ settings, floodedCount, onChange 
 
   return (
     <div className="overlay-controls">
-      <div className="overlay-controls-title">Flood layers</div>
+      <div className="overlay-controls-title">Bangladesh layers</div>
+      <label className="overlay-toggle">
+        <input
+          type="checkbox"
+          checked={settings.showHumanTerrain}
+          onChange={() => toggle('showHumanTerrain')}
+        />
+        <span>Human terrain</span>
+        <em>hides on zoom-in</em>
+      </label>
       <label className="overlay-toggle">
         <input
           type="checkbox"
           checked={settings.showFloodCells}
           onChange={() => toggle('showFloodCells')}
         />
-        <span>Flood zones</span>
+        <span>Risk grid</span>
         <em>{floodedCount} cells</em>
       </label>
       <label className="overlay-toggle">
@@ -32,9 +43,18 @@ export default function FloodOverlayControls({ settings, floodedCount, onChange 
           checked={settings.showRiverExtent}
           onChange={() => toggle('showRiverExtent')}
         />
-        <span>River extent tint</span>
+        <span>Flood extent</span>
       </label>
-      <p className="overlay-hint">Click a coloured cell for flood evidence</p>
+      <label className="overlay-toggle">
+        <input
+          type="checkbox"
+          checked={settings.showPopulation}
+          onChange={() => toggle('showPopulation')}
+        />
+        <span>Population density</span>
+        <em>NASA SEDAC</em>
+      </label>
+      <p className="overlay-hint">Flood extent is the broad scenario layer. Risk grid cells are optional analysis units.</p>
     </div>
   );
 }

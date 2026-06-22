@@ -5,17 +5,14 @@ import EvidencePanel from './EvidencePanel';
 import type { FloodOverlaySettings } from './FloodOverlayControls';
 import SidePanel from './SidePanel';
 import TopBar from './TopBar';
-import TimelineControl from './TimelineControl';
-import Legend from './Legend';
 import ConnectorModal from './ConnectorModal';
 import PlanModal from './PlanModal';
-import { api } from '../services/api';
+import { api, STATIC_FLOOD_META } from '../services/api';
 import { haversine, nearestSafeClinic } from '../utils/geo';
 import { isFloodedAtTime, riskAtTime } from '../utils/risk';
 import { routeTo } from '../utils/routing';
 import type { Country, EvacRoute, Facility, Hexagon, Region, UserLocation } from '../types';
 
-const PLAY_SECONDS = 8;
 const NEARBY_M = 20000;
 // flood depth (m) mapped from the timeline fraction, for headline context
 const MAX_DEPTH_M = 3;
@@ -32,10 +29,14 @@ export default function FloodModule() {
   const [route, setRoute] = useState<EvacRoute | null>(null);
   const [selectedFacility, setSelectedFacility] = useState<Facility | null>(null);
   const [selectedHex, setSelectedHex] = useState<Hexagon | null>(null);
-  const [overlay, setOverlay] = useState<FloodOverlaySettings>({ showRiverExtent: true, showFloodCells: true });
+  const [overlay, setOverlay] = useState<FloodOverlaySettings>({
+    showRiverExtent: false,
+    showFloodCells: false,
+    showPopulation: false,
+    showHumanTerrain: true,
+  });
   const [focus, setFocus] = useState<CameraFocus | null>(null);
-  const [time, setTime] = useState(1);
-  const [playing, setPlaying] = useState(false);
+  const [time] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showConnector, setShowConnector] = useState(false);
@@ -60,33 +61,44 @@ export default function FloodModule() {
     setError(null);
     setDistrict(null); setUserLocation(null); setRoute(null);
     setSelectedFacility(null); setSelectedHex(null);
-    Promise.all([api.hexagons(country), api.regions(country), api.facilities(country),
-                 api.floodMeta(country), api.countries()])
-      .then(([hx, rg, fc, meta, cs]) => {
+    setAllFacilities([]);
+    Promise.allSettled([api.hexagons(country), api.regions(country), api.floodMeta(country), api.countries()])
+      .then(([hxRes, rgRes, metaRes, csRes]) => {
         if (cancelled) return;
+        const hx = hxRes.status === 'fulfilled' ? hxRes.value : { hexagons: [] };
+        const rg = rgRes.status === 'fulfilled' ? rgRes.value : [];
+        const meta = metaRes.status === 'fulfilled' ? metaRes.value : STATIC_FLOOD_META[country];
+        const cs = csRes.status === 'fulfilled' ? csRes.value : countries;
         setHexagons(hx.hexagons);
         setRegions(rg);
-        setAllFacilities(fc.facilities);
         setFloodBounds(meta.bounds);
         const c = cs.find((x) => x.name === country);
         if (c) setFocus({ lng: c.center[0], lat: c.center[1], zoom: c.zoom });
+        if ([hxRes, rgRes, metaRes].some((r) => r.status === 'rejected')) {
+          setError('Some live layers are unavailable; showing cached Bangladesh flood data');
+        }
       })
       .catch((e) => !cancelled && setError(String(e)));
     return () => { cancelled = true; };
   }, [country]);
 
   useEffect(() => {
-    if (!playing) return;
-    let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000; last = now;
-      setTime((t) => (t + dt / PLAY_SECONDS >= 1 ? 0 : t + dt / PLAY_SECONDS));
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing]);
+    let cancelled = false;
+    const needsFacilities = Boolean(district || userLocation);
+    if (!needsFacilities) {
+      setAllFacilities([]);
+      return () => { cancelled = true; };
+    }
+    api.facilities(country, district)
+      .then((fc) => { if (!cancelled) setAllFacilities(fc.facilities); })
+      .catch((e) => {
+        if (!cancelled) {
+          setAllFacilities([]);
+          setError(`Facilities unavailable: ${String(e)}`);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [country, district, userLocation]);
 
   useEffect(() => {
     if (!userLocation || !allFacilities.length) { setRoute(null); return; }
@@ -110,9 +122,20 @@ export default function FloodModule() {
 
   const displayedFacilities = useMemo(() => {
     if (userLocation) return allFacilities.filter((f) => haversine(userLocation.lat, userLocation.lng, f.lat, f.lng) < NEARBY_M);
-    if (district) return allFacilities.filter((f) => f.district === district);
+    if (district) {
+      const exact = allFacilities.filter((f) => f.district === district);
+      if (exact.length) return exact;
+      const r = regions.find((x) => x.district === district);
+      if (!r) return [];
+      return allFacilities
+        .map((f) => ({ f, d: haversine(r.lat, r.lng, f.lat, f.lng) }))
+        .filter((x) => x.d < 30000)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 180)
+        .map((x) => x.f);
+    }
     return [];
-  }, [allFacilities, district, userLocation]);
+  }, [allFacilities, district, regions, userLocation]);
 
   const floodedCount = useMemo(
     () => hexagons.filter((h) => isFloodedAtTime(h, time)).length,
@@ -164,8 +187,6 @@ export default function FloodModule() {
         regions={regions}
         district={district}
         onDistrictChange={selectDistrict}
-        depthM={depthM}
-        leadHours={72}
         onConnect={() => setShowConnector(true)}
         onMakePlan={() => setShowPlan(true)}
       />
@@ -185,15 +206,6 @@ export default function FloodModule() {
         overlay={overlay}
         onOverlayChange={setOverlay}
         floodedCount={floodedCount}
-      />
-
-      <Legend floodedCount={floodedCount} />
-
-      <TimelineControl
-        time={time}
-        playing={playing}
-        onTime={(t) => { setPlaying(false); setTime(t); }}
-        onPlayToggle={() => setPlaying((p) => !p)}
       />
 
       {error && <div className="toast error">Backend unavailable — {error}</div>}

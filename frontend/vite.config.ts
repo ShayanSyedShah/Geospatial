@@ -29,23 +29,22 @@ export default defineConfig({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        globIgnores: [
+          '**/FloodModule-*.js',
+          '**/FloodModule-*.css',
+          '**/data/*.json',
+          '**/insp_*.png',
+          '**/waterlab_*.js',
+          '**/sirajganj_sat.js',
+        ],
         runtimeCaching: [
           {
-            urlPattern: /server\.arcgisonline\.com|basemaps\.cartocdn\.com|tile\.openstreetmap\.org/,
+            urlPattern: /server\.arcgisonline\.com|basemaps\.cartocdn\.com|tile\.openstreetmap\.org|elevation-tiles-prod\.s3\.amazonaws\.com|tiles\.openfreemap\.org/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'map-tiles',
               expiration: { maxEntries: 500, maxAgeSeconds: 2592000 },
               cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /\/api\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api',
-              networkTimeoutSeconds: 4,
-              expiration: { maxEntries: 50, maxAgeSeconds: 86400 },
             },
           },
         ],

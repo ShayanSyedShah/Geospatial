@@ -7,8 +7,6 @@ interface Props {
   regions: Region[];
   district: string | null;
   onDistrictChange: (d: string | null) => void;
-  depthM: number;
-  leadHours: number;
   onConnect: () => void;
   onMakePlan: () => void;
 }
@@ -16,13 +14,13 @@ interface Props {
 /** Top command bar: brand + scenario context + the two hero actions. */
 export default function TopBar({
   countries, country, onCountryChange, regions, district, onDistrictChange,
-  depthM, leadHours, onConnect, onMakePlan,
+  onConnect, onMakePlan,
 }: Props) {
   const scope = district ?? country;
   return (
     <header className="topbar">
       <div className="tb-brand">
-        <div className="tb-mark">◈</div>
+        <div className="tb-mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.6"><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><line x1="3" y1="12" x2="21" y2="12" /></svg></div>
         <div className="tb-brandtext">
           <b>BEACON</b>
           <span>second-wave flood intelligence</span>
@@ -32,9 +30,9 @@ export default function TopBar({
       <div className="tb-context">
         <span className="tb-loc">{scope}, {country}</span>
         <span className="tb-dot">·</span>
-        <span className="tb-fore">Flood forecast +{leadHours}h</span>
+        <span className="tb-fore">3D geospatial base</span>
         <span className="tb-dot">·</span>
-        <span className="tb-depth">depth {depthM.toFixed(1)} m</span>
+        <span className="tb-depth">buildings on city zoom</span>
       </div>
 
       <div className="tb-controls">

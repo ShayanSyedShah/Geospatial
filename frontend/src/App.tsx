@@ -1,21 +1,26 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import BeaconShell, { type ModuleId } from './components/BeaconShell';
-import FloodModule from './components/FloodModule';
 import Overview from './components/Overview';
-import SupplyModule from './components/SupplyModule';
-import ComplaintsModule from './components/ComplaintsModule';
-import EducationModule from './components/EducationModule';
 import './styles/globals.css';
 
+const FloodModule = lazy(() => import('./components/FloodModule'));
+const Sylhet2022Module = lazy(() => import('./components/Sylhet2022Module'));
+const SupplyModule = lazy(() => import('./components/SupplyModule'));
+const ComplaintsModule = lazy(() => import('./components/ComplaintsModule'));
+const EducationModule = lazy(() => import('./components/EducationModule'));
+
 export default function App() {
-  const [active, setActive] = useState<ModuleId>('overview');
+  const [active, setActive] = useState<ModuleId>('flood');
   return (
     <BeaconShell active={active} onNavigate={setActive}>
       {active === 'overview' && <Overview onNavigate={setActive} />}
-      {active === 'flood' && <FloodModule />}
-      {active === 'supply' && <SupplyModule />}
-      {active === 'complaints' && <ComplaintsModule />}
-      {active === 'education' && <EducationModule />}
+      <Suspense fallback={<div className="module-pad"><p className="mod-loading">Loading module...</p></div>}>
+        {active === 'flood' && <FloodModule />}
+        {active === 'sylhet2022' && <Sylhet2022Module />}
+        {active === 'supply' && <SupplyModule />}
+        {active === 'complaints' && <ComplaintsModule />}
+        {active === 'education' && <EducationModule />}
+      </Suspense>
     </BeaconShell>
   );
 }

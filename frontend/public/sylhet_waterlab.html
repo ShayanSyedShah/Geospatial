@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BEACON Water Lab — Sylhet (real Surma flow)</title>
+<script src="sylhet_dem.js"></script>
+<script src="sylhet_sat.js"></script>
+<script src="sylhet_osm.js"></script>
+<style>
+  :root{--line:#243650;--muted:#9fb1c9;--brand:#1f6feb}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#070d16;color:#e8eef7;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;overflow:hidden}
+  #c{position:absolute;inset:0;display:block}
+  #top{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:12px;padding:0 16px;
+    background:linear-gradient(180deg,rgba(7,13,22,.95),rgba(7,13,22,.4));z-index:5;border-bottom:1px solid var(--line)}
+  #top b{font-weight:800;letter-spacing:1px}#top b span{color:#3b82f6}
+  #top .sub{color:var(--muted);font-size:12.5px}
+  #hud{position:absolute;top:58px;left:12px;z-index:5;background:rgba(13,22,38,.86);border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px;font-size:13px;min-width:210px}
+  #hud .row{display:flex;justify-content:space-between;margin:5px 0}#hud .row .v{font-weight:700}
+  #panel{position:absolute;left:12px;right:12px;bottom:12px;z-index:5;background:rgba(13,22,38,.9);border:1px solid var(--line);
+    border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:16px;backdrop-filter:blur(6px)}
+  #panel label{font-size:12px;color:var(--muted);white-space:nowrap}
+  input[type=range]{-webkit-appearance:none;flex:1;height:6px;border-radius:6px;background:linear-gradient(90deg,#1d4ed8,#60a5fa);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid #1d4ed8;cursor:pointer}
+  .stage{font-weight:800;font-size:18px;min-width:120px;text-align:right;color:#cfe0ff}
+  button{background:var(--brand);color:#fff;border:none;padding:9px 15px;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid var(--line)}
+  #legend{position:absolute;top:58px;right:12px;z-index:5;background:rgba(13,22,38,.86);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--muted)}
+  .ramp{height:10px;width:140px;border-radius:3px;background:linear-gradient(90deg,#a6e3ff,#3b82f6,#1d4ed8,#0a1f5c)}
+  #probe{position:absolute;top:176px;left:12px;z-index:5;background:rgba(13,22,38,.88);border:1px solid var(--line);
+    border-radius:12px;padding:10px 12px;font-size:12px;min-width:210px;color:var(--muted);display:none}
+  #probe b{display:block;color:#fff;font-size:13px;margin-bottom:4px}
+  #probe .danger{color:#ffb4a8;font-weight:800}
+  #source{position:absolute;right:12px;bottom:76px;z-index:5;background:rgba(13,22,38,.78);border:1px solid var(--line);
+    border-radius:10px;padding:8px 10px;font-size:11px;color:var(--muted)}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="top"><b>BE<span>A</span>CON</b> · Water Lab
+  <span class="sub">Sylhet · real SRTM terrain · Surma river flood (2022) · live shallow-water flow</span></div>
+<div id="hud">
+  <div class="row"><span>Flooded area</span><span class="v" id="h_area">0%</span></div>
+  <div class="row"><span>Max depth</span><span class="v" id="h_depth">0.0 m</span></div>
+  <div class="row"><span>Water volume</span><span class="v" id="h_vol">0 Mm³</span></div>
+  <div class="row"><span>Sim FPS</span><span class="v" id="h_fps">–</span></div>
+</div>
+<div id="legend"><div style="color:#fff;font-weight:700;margin-bottom:6px">Water depth</div><div class="ramp"></div>
+  <div style="display:flex;justify-content:space-between;width:140px"><span>shallow</span><span>deep</span></div></div>
+<div id="probe"><b>Depth probe</b><span>Click the terrain or water.</span></div>
+<div id="source">Surma river (OSM) + buildings/roads + SRTM terrain + live shallow-water flow</div>
+<div id="panel">
+  <label>Surma river level</label>
+  <input id="stage" type="range" min="0" max="14" step="0.2" value="0"/>
+  <div class="stage"><span id="stageval">0.0</span> m</div>
+  <button id="rise">▶ Auto-rise (2022 flood)</button>
+  <button class="ghost" id="reset">Reset</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const DEM = window.WATERLAB_DEM;
+const OSM = window.SYLHET_OSM || { buildings: [], roads: [], rivers: [], counts: {} };
+const NX = DEM.nx, NY = DEM.ny, N = NX*NY;
+const VEXAG = 0.45;                // gentle vertical exaggeration for the haor floodplain
+const BASE_Y = -9;
+const [LNG0, LAT0, LNG1, LAT1] = DEM.bbox;
+const CELL_M = 96;                 // metres per cell (≈ bbox width / NX at 25°N)
+
+// ---- terrain (clamp artifact pits/spikes to a sane floodplain; hills cap at 40 m) ----
+const b = new Float32Array(N);
+for (let j=0;j<NY;j++) for (let i=0;i<NX;i++) b[j*NX+i] = Math.max(2, Math.min(40, DEM.elev[j][i]));
+function blur(arr){ const o=new Float32Array(N);
+  for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){let s=0,n=0;
+    for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){const ii=i+di,jj=j+dj;
+      if(ii>=0&&ii<NX&&jj>=0&&jj<NY){s+=arr[jj*NX+ii];n++;}}
+    o[j*NX+i]=s/n;} return o; }
+for(let p=0;p<3;p++){ const sm=blur(b); b.set(sm); }
+const sorted = Array.from(b).sort((a,c)=>a-c);
+const pct = p => sorted[Math.floor(p/100*(N-1))];
+const GROUND_MED = pct(45);        // floodplain reference level the Surma sits below
+
+// ---- sim state ----
+const d=new Float32Array(N), fL=new Float32Array(N),fR=new Float32Array(N),fT=new Float32Array(N),fB=new Float32Array(N);
+const L=CELL_M, G=9.81, DT=0.05, A=L, SPEED=4;
+const idx=(i,j)=>j*NX+i;
+const src=[];                      // filled from real Surma geometry below
+let stage = 0;                     // metres above floodplain reference
+function waterSurface(){ return GROUND_MED + stage; }
+
+function simStep(){
+  const surf = waterSurface();
+  for(const k of src){ const want = surf - b[k]; if(want>d[k]) d[k]=want; }
+  for(let j=0;j<NY;j++) for(let i=0;i<NX;i++){
+    const k=idx(i,j), hs=b[k]+d[k];
+    const hl=i>0?b[k-1]+d[k-1]:hs, hr=i<NX-1?b[k+1]+d[k+1]:hs;
+    const ht=j<NY-1?b[k+NX]+d[k+NX]:hs, hb=j>0?b[k-NX]+d[k-NX]:hs;
+    fL[k]=Math.max(0,fL[k]+SPEED*DT*A*G*(hs-hl)/L); fR[k]=Math.max(0,fR[k]+SPEED*DT*A*G*(hs-hr)/L);
+    fT[k]=Math.max(0,fT[k]+SPEED*DT*A*G*(hs-ht)/L); fB[k]=Math.max(0,fB[k]+SPEED*DT*A*G*(hs-hb)/L);
+    const tot=(fL[k]+fR[k]+fT[k]+fB[k])*DT, vol=d[k]*L*L;
+    if(tot>vol && tot>0){const s=vol/tot; fL[k]*=s;fR[k]*=s;fT[k]*=s;fB[k]*=s;}
+  }
+  for(let j=0;j<NY;j++) for(let i=0;i<NX;i++){
+    const k=idx(i,j);
+    const inf=(i>0?fR[k-1]:0)+(i<NX-1?fL[k+1]:0)+(j>0?fT[k-NX]:0)+(j<NY-1?fB[k+NX]:0);
+    const out=fL[k]+fR[k]+fT[k]+fB[k];
+    d[k]+=DT*(inf-out)/(L*L); if(d[k]<0)d[k]=0;
+  }
+}
+
+// ---- three.js scene ----
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.18;
+const scene=new THREE.Scene(); scene.background=new THREE.Color('#0a1424');
+scene.fog=new THREE.Fog('#0a1424', 220, 620);
+const camera=new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.5, 3000);
+camera.position.set(0, 95, 185);
+const controls=new OrbitControls(camera, canvas); controls.target.set(0,4,0); controls.enableDamping=true;
+controls.minDistance=24; controls.maxDistance=340; controls.maxPolarAngle=Math.PI*0.49;
+scene.add(new THREE.HemisphereLight('#dbeaff','#303846',1.45));
+scene.add(new THREE.AmbientLight('#ffffff',0.28));
+const dir=new THREE.DirectionalLight('#fff7e8',2.4); dir.position.set(160,230,105); scene.add(dir);
+const dir2=new THREE.DirectionalLight('#b9d9ff',0.85); dir2.position.set(-150,135,-140); scene.add(dir2);
+
+// grid → world coords
+const SX=1, SZ=1;                 // 1 world unit per cell
+function wx(i){ return (i-(NX-1)/2)*SX; }
+function wz(j){ return (j-(NY-1)/2)*SZ; }
+function lonLatToGrid(lng,lat){
+  return { i:(lng-LNG0)/(LNG1-LNG0)*(NX-1), j:(lat-LAT0)/(LAT1-LAT0)*(NY-1) };
+}
+function lonLatToWorld(lng,lat){ const g=lonLatToGrid(lng,lat); return {x:wx(g.i), z:wz(g.j), i:g.i, j:g.j}; }
+function clampi(v,max){ return Math.max(0,Math.min(max,Math.round(v))); }
+function terrainAtGrid(i,j){
+  const x=Math.max(0,Math.min(NX-1,i)), y=Math.max(0,Math.min(NY-1,j));
+  const i0=Math.floor(x), j0=Math.floor(y), i1=Math.min(NX-1,i0+1), j1=Math.min(NY-1,j0+1);
+  const tx=x-i0, ty=y-j0;
+  const a=b[idx(i0,j0)], c=b[idx(i1,j0)], e=b[idx(i0,j1)], f=b[idx(i1,j1)];
+  return (a*(1-tx)+c*tx)*(1-ty)+(e*(1-tx)+f*tx)*ty;
+}
+function terrainAtWorld(x,z){
+  const i=x/SX+(NX-1)/2, j=z/SZ+(NY-1)/2;
+  return terrainAtGrid(i,j)*VEXAG;
+}
+function markSourceCell(i,j,r=2){
+  const ci=clampi(i,NX-1), cj=clampi(j,NY-1);
+  for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++){
+    const ii=ci+di,jj=cj+dj;
+    if(ii>=0&&ii<NX&&jj>=0&&jj<NY) src.push(idx(ii,jj));
+  }
+}
+function markRiverSources(){
+  const before=src.length;
+  for(const river of (OSM.rivers||[])){
+    // The Surma channel (and any mapped river/riverbank) feeds the flood.
+    // Lakes/ponds (natural=water) are NOT sources — only flowing river lines.
+    if(!(river.kind==='river' || river.kind==='riverbank')) continue;
+    for(let p=0;p<river.pts.length-1;p++){
+      const a=lonLatToGrid(river.pts[p][0],river.pts[p][1]);
+      const c=lonLatToGrid(river.pts[p+1][0],river.pts[p+1][1]);
+      const steps=Math.max(1,Math.ceil(Math.hypot(c.i-a.i,c.j-a.j)*2));
+      for(let s=0;s<=steps;s++){
+        const t=s/steps;
+        markSourceCell(a.i+(c.i-a.i)*t,a.j+(c.j-a.j)*t,3);
+      }
+    }
+  }
+  if(src.length===before){     // fallback: seed the south edge if no river parsed
+    for(let i=0;i<NX;i++) markSourceCell(i,4,1);
+  }
+  const unique=[...new Set(src)];
+  src.length=0; src.push(...unique);
+}
+markRiverSources();
+
+// Whole-tile render: the Surma corridor, the haor floodplain, and Sylhet city.
+function inHotspot(i,j){ return true; }
+
+// shared index buffer
+const tri=[]; for(let j=0;j<NY-1;j++) for(let i=0;i<NX-1;i++){
+  if(!(inHotspot(i,j)||inHotspot(i+1,j)||inHotspot(i,j+1)||inHotspot(i+1,j+1))) continue;
+  const a=j*NX+i, b2=a+1, c=a+NX, d2=c+1; tri.push(a,c,b2, b2,c,d2);
+}
+const index=new Uint32Array(tri);
+
+// terrain mesh — real Esri satellite imagery draped on the DEM
+const satTex=new THREE.TextureLoader().load(window.SYLHET_SAT);
+satTex.colorSpace=THREE.SRGBColorSpace; satTex.anisotropy=16;
+const tg=new THREE.BufferGeometry();
+const tpos=new Float32Array(N*3), tuv=new Float32Array(N*2);
+for(let j=0;j<NY;j++) for(let i=0;i<NX;i++){ const k=idx(i,j);
+  tpos[k*3]=wx(i); tpos[k*3+1]=b[k]*VEXAG; tpos[k*3+2]=wz(j);
+  tuv[k*2]=i/(NX-1); tuv[k*2+1]=j/(NY-1); }
+tg.setAttribute('position',new THREE.BufferAttribute(tpos,3));
+tg.setAttribute('uv',new THREE.BufferAttribute(tuv,2));
+tg.setIndex(new THREE.BufferAttribute(index,1)); tg.computeVertexNormals();
+const terrainMat=new THREE.MeshStandardMaterial({
+  map:satTex, roughness:0.84, metalness:0.0, side:THREE.DoubleSide,
+  color:new THREE.Color(1.08,1.08,1.04)
+});
+const terrainMesh=new THREE.Mesh(tg, terrainMat);
+scene.add(terrainMesh);
+
+// Real OSM context: roads, the Surma channel glow, and low-rise building footprints.
+function addLineLayer(features, color, yOff, kinds){
+  const pts=[];
+  for(const f of features||[]){
+    if(kinds && !kinds.includes(f.kind)) continue;
+    for(let p=0;p<f.pts.length-1;p++){
+      const a=lonLatToWorld(f.pts[p][0],f.pts[p][1]);
+      const c=lonLatToWorld(f.pts[p+1][0],f.pts[p+1][1]);
+      pts.push(a.x,terrainAtWorld(a.x,a.z)+yOff,a.z, c.x,terrainAtWorld(c.x,c.z)+yOff,c.z);
+    }
+  }
+  if(!pts.length) return;
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  const m=new THREE.LineBasicMaterial({color,transparent:true,opacity:0.9});
+  const lines=new THREE.LineSegments(g,m);
+  lines.renderOrder=2;
+  scene.add(lines);
+}
+function roadWidth(kind){
+  if(kind==='primary' || kind==='trunk') return 0.82;
+  if(kind==='secondary' || kind==='tertiary') return 0.58;
+  if(kind==='residential' || kind==='unclassified') return 0.30;
+  return 0.22;
+}
+function addRoadRibbons(features){
+  const pos=[], col=[];
+  const asphalt=[0.55,0.52,0.45], edge=[0.74,0.70,0.58];
+  const addTri=(a,b,c,ca,cb,cc)=>{
+    pos.push(a[0],a[1],a[2], b[0],b[1],b[2], c[0],c[1],c[2]);
+    col.push(...ca,...cb,...cc);
+  };
+  for(const f of features||[]){
+    const w=roadWidth(f.kind);
+    for(let p=0;p<f.pts.length-1;p++){
+      const a=lonLatToWorld(f.pts[p][0],f.pts[p][1]);
+      const b2=lonLatToWorld(f.pts[p+1][0],f.pts[p+1][1]);
+      const dx=b2.x-a.x, dz=b2.z-a.z, len=Math.hypot(dx,dz);
+      if(len<0.2) continue;
+      const nx=-dz/len*w, nz=dx/len*w;
+      const ay=terrainAtWorld(a.x,a.z)+0.13, by=terrainAtWorld(b2.x,b2.z)+0.13;
+      const p1=[a.x+nx,ay,a.z+nz], p2=[a.x-nx,ay,a.z-nz], p3=[b2.x+nx,by,b2.z+nz], p4=[b2.x-nx,by,b2.z-nz];
+      addTri(p1,p2,p3,edge,asphalt,edge);
+      addTri(p3,p2,p4,edge,asphalt,asphalt);
+    }
+  }
+  if(!pos.length) return;
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  g.computeVertexNormals();
+  const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.88,metalness:0,side:THREE.DoubleSide,transparent:true,opacity:0.62});
+  const mesh=new THREE.Mesh(g,m);
+  mesh.renderOrder=1.5;
+  scene.add(mesh);
+}
+function addBuildings(){
+  const pos=[], col=[];
+  const wallColor=[0.74,0.72,0.66], roofColor=[0.88,0.80,0.63], wetColor=[0.10,0.30,0.42];
+  const tri=(a,b,c,ca,cb,cc)=>{
+    pos.push(a[0],a[1],a[2], b[0],b[1],b[2], c[0],c[1],c[2]);
+    col.push(...ca,...cb,...cc);
+  };
+  for(const bld of (OSM.buildings||[])){
+    if(!bld.pts || bld.pts.length<3) continue;
+    const poly=bld.pts.map(p=>lonLatToWorld(p[0],p[1]));
+    const area=Math.abs(poly.reduce((s,p,i)=>{const q=poly[(i+1)%poly.length]; return s+p.x*q.z-q.x*p.z;},0))/2;
+    if(area<0.06 || area>260) continue;
+    const h=Math.max(1.25,Math.min(5.8,(bld.height||4.2)*VEXAG*1.15));
+    const baseY=poly.reduce((s,p)=>s+terrainAtWorld(p.x,p.z),0)/poly.length+0.08;
+    const topY=baseY+h;
+    const n=poly.length;
+    const bot=poly.map(p=>[p.x,baseY,p.z]);
+    const top=poly.map(p=>[p.x,topY,p.z]);
+    for(let i=1;i<n-1;i++) tri(top[0],top[i],top[i+1],roofColor,roofColor,roofColor);
+    for(let i=0;i<n;i++){
+      const j=(i+1)%n;
+      tri(bot[i],bot[j],top[i],wetColor,wetColor,wallColor);
+      tri(top[i],bot[j],top[j],wallColor,wetColor,wallColor);
+    }
+  }
+  if(!pos.length) return;
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  g.computeVertexNormals();
+  const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.82,metalness:0.02,side:THREE.DoubleSide});
+  const mesh=new THREE.Mesh(g,m);
+  mesh.renderOrder=1;
+  scene.add(mesh);
+}
+addRoadRibbons(OSM.roads);
+addLineLayer(OSM.rivers,'#5cc8ff',0.25,['river','riverbank']);   // Surma channel glow
+addLineLayer(OSM.roads,'#d8c79a',0.20,null);
+addBuildings();
+
+// water mesh (custom shader: depth-graded color + alpha, dry cells discarded)
+const wg=new THREE.BufferGeometry();
+const wpos=new Float32Array(N*3), wdepth=new Float32Array(N);
+for(let j=0;j<NY;j++) for(let i=0;i<NX;i++){const k=idx(i,j); wpos[k*3]=wx(i); wpos[k*3+1]=-50; wpos[k*3+2]=wz(j);}
+wg.setAttribute('position',new THREE.BufferAttribute(wpos,3));
+wg.setAttribute('aDepth',new THREE.BufferAttribute(wdepth,1));
+wg.setIndex(new THREE.BufferAttribute(index,1));
+const waterMat=new THREE.ShaderMaterial({
+  transparent:true, depthWrite:false, side:THREE.DoubleSide,
+  uniforms:{ uTime:{value:0} },
+  vertexShader:`attribute float aDepth; varying float vD; varying vec3 vW;
+    void main(){ vD=aDepth; vec4 wp=modelMatrix*vec4(position,1.0); vW=wp.xyz;
+      gl_Position=projectionMatrix*viewMatrix*wp; }`,
+  fragmentShader:`varying float vD; varying vec3 vW; uniform float uTime;
+    void main(){ if(vD<0.05) discard;
+      vec3 shallow=vec3(0.46,0.78,0.82), mid=vec3(0.08,0.32,0.48), deep=vec3(0.004,0.035,0.13);
+      float t=clamp(vD/10.0,0.0,1.0);
+      vec3 base=t<0.45?mix(shallow,mid,t/0.45):mix(mid,deep,(t-0.45)/0.55);
+      vec3 n=normalize(vec3(0.035*sin(vW.x*0.20+uTime*1.45)+0.02*sin((vW.x+vW.z)*0.09+uTime*0.9),1.0,0.035*sin(vW.z*0.18+uTime*1.25)));
+      vec3 V=normalize(cameraPosition-vW);
+      vec3 Ld=normalize(vec3(0.45,0.82,0.34));
+      float spec=pow(max(dot(reflect(-Ld,n),V),0.0),115.0);
+      float fres=pow(1.0-max(dot(V,n),0.0),2.4);
+      float glint=0.025*sin(vW.x*0.8+uTime*2.2)*sin(vW.z*0.7-uTime*1.6);
+      vec3 col=base+spec*0.55+fres*vec3(0.22,0.36,0.46)+glint;
+      float a=clamp(0.20+vD*0.035+fres*0.12,0.0,0.58);
+      gl_FragColor=vec4(col,a); }`
+});
+scene.add(new THREE.Mesh(wg, waterMat));
+
+const foamDepth=new Float32Array(N), foamPos=new Float32Array(N*3);
+for(let j=0;j<NY;j++) for(let i=0;i<NX;i++){const k=idx(i,j); foamPos[k*3]=wx(i); foamPos[k*3+1]=b[k]*VEXAG+0.08; foamPos[k*3+2]=wz(j);}
+const fg=new THREE.BufferGeometry();
+fg.setAttribute('position',new THREE.BufferAttribute(foamPos,3));
+fg.setAttribute('aFoam',new THREE.BufferAttribute(foamDepth,1));
+fg.setIndex(new THREE.BufferAttribute(index,1));
+const foamMat=new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,side:THREE.DoubleSide,
+  vertexShader:`attribute float aFoam; varying float vF; void main(){vF=aFoam; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader:`varying float vF; void main(){ if(vF<0.02) discard; gl_FragColor=vec4(0.70,0.90,1.0,clamp(vF,0.0,0.26)); }`
+});
+scene.add(new THREE.Mesh(fg,foamMat));
+
+const MAX_WALL_QUADS=(NX*(NY-1)+(NX-1)*NY+NX*2+NY*2);
+const wallPos=new Float32Array(MAX_WALL_QUADS*6*3);
+const wallDepth=new Float32Array(MAX_WALL_QUADS*6);
+const wallGeom=new THREE.BufferGeometry();
+wallGeom.setAttribute('position',new THREE.BufferAttribute(wallPos,3));
+wallGeom.setAttribute('aDepth',new THREE.BufferAttribute(wallDepth,1));
+wallGeom.setDrawRange(0,0);
+const wallMat=new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,side:THREE.DoubleSide,
+  vertexShader:`attribute float aDepth; varying float vD; varying vec3 vW;
+    void main(){ vD=aDepth; vec4 wp=modelMatrix*vec4(position,1.0); vW=wp.xyz;
+      gl_Position=projectionMatrix*viewMatrix*wp; }`,
+  fragmentShader:`varying float vD;
+    void main(){ if(vD<0.05) discard;
+      float t=clamp(vD/8.0,0.0,1.0);
+      vec3 col=mix(vec3(0.22,0.55,0.62),vec3(0.01,0.08,0.20),t);
+      gl_FragColor=vec4(col,clamp(0.18+vD*0.025,0.0,0.44)); }`
+});
+scene.add(new THREE.Mesh(wallGeom,wallMat));
+
+function updateWaterGeometry(){
+  const pa=wg.attributes.position.array, da=wg.attributes.aDepth.array;
+  const fa=fg.attributes.aFoam.array, fp=fg.attributes.position.array;
+  const wp=wallGeom.attributes.position.array, wd=wallGeom.attributes.aDepth.array;
+  let wc=0;
+  function pushWall(x1,z1,top1,bot1,dep1,x2,z2,top2,bot2,dep2){
+    if(wc+18>wp.length) return;
+    const verts=[x1,top1,z1, x1,bot1,z1, x2,top2,z2, x2,top2,z2, x1,bot1,z1, x2,bot2,z2];
+    const depths=[dep1,dep1,dep2,dep2,dep1,dep2];
+    for(let n=0;n<18;n++) wp[wc+n]=verts[n];
+    const di=wc/3;
+    for(let n=0;n<6;n++) wd[di+n]=depths[n];
+    wc+=18;
+  }
+  for(let j=0;j<NY;j++) for(let i=0;i<NX;i++){ const k=idx(i,j), dep=d[k]; da[k]=dep;
+    pa[k*3+1] = (b[k]+dep)*VEXAG + 0.04;
+    let nearDry=false;
+    if(dep>0.05 && dep<1.35){
+      nearDry = i===0||i===NX-1||j===0||j===NY-1||d[k-1]<0.05||d[k+1]<0.05||d[k-NX]<0.05||d[k+NX]<0.05;
+    }
+    fa[k]=nearDry ? (0.24*(1.0-Math.min(dep/1.35,1))) : 0;
+    fp[k*3+1]=(b[k]+Math.min(dep,0.12))*VEXAG+0.12;
+  }
+  for(let j=0;j<NY;j++) for(let i=0;i<NX;i++){
+    const k=idx(i,j), dep=d[k]; if(dep<=0.05) continue;
+    const x=wx(i), z=wz(j), top=(b[k]+dep)*VEXAG+0.02, bot=b[k]*VEXAG+0.03;
+    if(i===0 || d[k-1]<=0.05){
+      const k2=j<NY-1?idx(i,j+1):k, z2=j<NY-1?wz(j+1):z+1, dep2=d[k2];
+      pushWall(x-0.5,z,top,bot,dep,x-0.5,z2,(b[k2]+Math.max(dep2,0.05))*VEXAG+0.02,b[k2]*VEXAG+0.03,Math.max(dep2,dep*0.65));
+    }
+    if(i===NX-1 || d[k+1]<=0.05){
+      const k2=j<NY-1?idx(i,j+1):k, z2=j<NY-1?wz(j+1):z+1, dep2=d[k2];
+      pushWall(x+0.5,z,top,bot,dep,x+0.5,z2,(b[k2]+Math.max(dep2,0.05))*VEXAG+0.02,b[k2]*VEXAG+0.03,Math.max(dep2,dep*0.65));
+    }
+    if(j===0 || d[k-NX]<=0.05){
+      const k2=i<NX-1?idx(i+1,j):k, x2=i<NX-1?wx(i+1):x+1, dep2=d[k2];
+      pushWall(x,z-0.5,top,bot,dep,x2,z-0.5,(b[k2]+Math.max(dep2,0.05))*VEXAG+0.02,b[k2]*VEXAG+0.03,Math.max(dep2,dep*0.65));
+    }
+    if(j===NY-1 || d[k+NX]<=0.05){
+      const k2=i<NX-1?idx(i+1,j):k, x2=i<NX-1?wx(i+1):x+1, dep2=d[k2];
+      pushWall(x,z+0.5,top,bot,dep,x2,z+0.5,(b[k2]+Math.max(dep2,0.05))*VEXAG+0.02,b[k2]*VEXAG+0.03,Math.max(dep2,dep*0.65));
+    }
+  }
+  wg.attributes.position.needsUpdate=true; wg.attributes.aDepth.needsUpdate=true;
+  fg.attributes.position.needsUpdate=true; fg.attributes.aFoam.needsUpdate=true;
+  wallGeom.attributes.position.needsUpdate=true; wallGeom.attributes.aDepth.needsUpdate=true;
+  wallGeom.setDrawRange(0,wc/3);
+}
+
+// HUD
+const elArea=document.getElementById('h_area'), elDepth=document.getElementById('h_depth'),
+      elVol=document.getElementById('h_vol'), elFps=document.getElementById('h_fps');
+function updateHUD(){ let wet=0,maxd=0,vol=0;
+  for(let k=0;k<N;k++){ if(d[k]>0.05)wet++; if(d[k]>maxd)maxd=d[k]; vol+=d[k]; }
+  elArea.textContent=(100*wet/N).toFixed(0)+'%';
+  elDepth.textContent=maxd.toFixed(1)+' m';
+  elVol.textContent=(vol*L*L/1e6).toFixed(1)+' Mm³';
+}
+
+// controls
+const stageSlider=document.getElementById('stage'), stageVal=document.getElementById('stageval');
+stageSlider.addEventListener('input',()=>{ stage=parseFloat(stageSlider.value); stageVal.textContent=stage.toFixed(1); });
+let rising=false; const riseBtn=document.getElementById('rise');
+riseBtn.onclick=()=>{ rising=!rising; riseBtn.textContent=rising?'⏸ Pause':'▶ Auto-rise (2022 flood)'; };
+document.getElementById('reset').onclick=()=>{ d.fill(0);fL.fill(0);fR.fill(0);fT.fill(0);fB.fill(0);
+  stage=0; stageSlider.value=0; stageVal.textContent='0.0'; rising=false; riseBtn.textContent='▶ Auto-rise (2022 flood)'; };
+
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight); });
+renderer.setSize(innerWidth,innerHeight);
+
+// click-to-depth probe
+const probe=document.getElementById('probe');
+const probeMarker=new THREE.Mesh(
+  new THREE.SphereGeometry(0.9,16,10),
+  new THREE.MeshStandardMaterial({color:'#ffec99',emissive:'#8a5a00',emissiveIntensity:0.45})
+);
+probeMarker.visible=false; scene.add(probeMarker);
+const raycaster=new THREE.Raycaster();
+const pointer=new THREE.Vector2();
+canvas.addEventListener('click',(ev)=>{
+  const rect=canvas.getBoundingClientRect();
+  pointer.x=((ev.clientX-rect.left)/rect.width)*2-1;
+  pointer.y=-((ev.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(pointer,camera);
+  const hit=raycaster.intersectObject(terrainMesh,false)[0];
+  if(!hit) return;
+  const x=hit.point.x, z=hit.point.z;
+  const gi=clampi(x/SX+(NX-1)/2,NX-1), gj=clampi(z/SZ+(NY-1)/2,NY-1);
+  const dep=d[idx(gi,gj)];
+  const ground=b[idx(gi,gj)];
+  probeMarker.position.set(x,(ground+dep)*VEXAG+1.15,z);
+  probeMarker.visible=true;
+  probe.style.display='block';
+  const status=dep>1.5?'Building ground floors likely submerged':dep>0.5?'Road/building access impaired':dep>0.08?'Shallow water on ground':'Dry at this point';
+  probe.innerHTML=`<b>Depth probe</b><span>Water depth: <span class="danger">${dep.toFixed(2)} m</span></span><br><span>Ground elevation: ${ground.toFixed(1)} m</span><br><span>${status}</span>`;
+});
+
+let last=performance.now(), facc=0, fcount=0;
+function loop(now){
+  const dtr=now-last; last=now;
+  if(rising && stage<14){ stage=Math.min(14, stage+dtr*0.0009); stageSlider.value=stage; stageVal.textContent=stage.toFixed(1); }
+  const t0=performance.now();
+  simStep(); if(dtr<24) simStep();
+  facc+=performance.now()-t0; fcount++;
+  if(fcount>=20){ elFps.textContent=(1000/(facc/fcount)).toFixed(0)+' steps/s'; facc=0; fcount=0; }
+  updateWaterGeometry(); updateHUD();
+  waterMat.uniforms.uTime.value=now*0.001;
+  controls.update();
+  renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
