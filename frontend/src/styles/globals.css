@@ -531,6 +531,14 @@ a { color: var(--un-blue-mid); }
 .btn-primary:hover { background: var(--un-blue-mid); }
 .btn-primary:disabled { opacity: .6; cursor: default; }
 
+/* ---------- Protocol provenance (evidence panel extension) ---------- */
+.prov-value { display: flex; flex-direction: column; gap: 3px; }
+.prov-value b { font-size: 26px; color: var(--un-blue-deep); line-height: 1.1; }
+.prov-value b em { font-size: 14px; font-weight: 600; color: var(--muted); font-style: normal; }
+.prov-value span { font-size: 13px; color: var(--muted); }
+.prov-key { display: inline-block; min-width: 66px; font-weight: 700; color: var(--un-blue-mid); }
+.prov-dcid { font-family: ui-monospace, monospace; font-size: 11px; background: var(--un-tint-2); padding: 1px 5px; border-radius: 4px; color: var(--text); }
+
 /* ---------- Protocols ---------- */
 .protocols { display: flex; flex-direction: column; gap: 6px; }
 .layer-list { display: flex; flex-direction: column; }
@@ -755,3 +763,640 @@ a { color: var(--un-blue-mid); }
   .mod-head { flex-direction: column; }
   .ov-live { display: none; }
 }
+
+
+/* ===== Sylhet 2022 module styles (local) — appended after UN reskin ===== */
+/* ---------- Sylhet 2022 reconstruction ---------- */
+.sylhet2022 { position: fixed; inset: 0 0 0 var(--rail-w); background: #050b12; color: #e8eef7; overflow: hidden; }
+.syl-titlebar { height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 18px;
+  background: linear-gradient(180deg, rgba(6,14,22,.96), rgba(6,14,22,.5)); border-bottom: 1px solid #1d2c42; }
+.syl-titlebar strong { letter-spacing: 1px; font-weight: 800; }
+.syl-eyebrow { font-weight: 700; color: #cfe0ff; }
+.syl-sub { color: #9fb1c9; font-size: 12.5px; }
+.syl-stage { position: absolute; inset: 48px 0 0 0; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.syl-status { color: #9fb1c9; font-size: 14px; }
+.syl-scaffold { max-width: 760px; background: rgba(13,22,38,.72); border: 1px solid #243650; border-radius: 14px; padding: 22px 26px; }
+.syl-scaffold h2 { margin: 0 0 8px; font-size: 18px; }
+.syl-scaffold ul { margin: 10px 0; padding-left: 18px; line-height: 1.5; }
+.syl-scaffold li { margin: 6px 0; color: #d7e3f4; font-size: 13.5px; }
+.syl-source { color: #9fb1c9; font-size: 12px; margin-top: 12px; }
+
+/* Sylhet 2022 â€” map scene UI */
+/* Fade the far/top of the tilted view into the dark bg so the messy distant
+   ground (urban texture / far buildings near the horizon) disappears. */
+.syl-top-fade { position: absolute; top: 48px; left: 0; right: 0; height: 32vh; z-index: 5; pointer-events: none;
+  background: linear-gradient(180deg, #050b12 0%, rgba(5,11,18,0.82) 24%, rgba(5,11,18,0) 100%); }
+.syl-titlebar { position: relative; z-index: 6; }
+.syl-srcbadge { margin-left: auto; color: #7fd4ff; font-size: 11.5px; border: 1px solid #1d3a52; padding: 4px 9px; border-radius: 20px; background: rgba(8,20,30,.6); }
+
+/* Danger-zone alarms — pulsing red markers on the worst-hit districts. */
+.syl-danger { position: relative; width: 0; height: 0; }
+.syl-danger .dot { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%;
+  background: #ff5a4d; box-shadow: 0 0 12px 2px rgba(255,59,48,.85); }
+.syl-danger .ring { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid #ff6a5d; opacity: 0; animation: syl-danger-pulse 2.2s ease-out infinite; }
+.syl-danger .ring.r2 { animation-delay: 1.1s; }
+.syl-danger .tag { position: absolute; left: 16px; top: -14px; white-space: nowrap;
+  background: rgba(34,8,8,.86); border: 1px solid #7a2420; border-radius: 9px; padding: 5px 9px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+.syl-danger .tag b { color: #ffe1db; font-size: 12.5px; display: block; letter-spacing: .2px; }
+.syl-danger .tag span { color: #ff9f93; font-size: 10.5px; }
+.syl-danger.sev-3 .dot { width: 18px; height: 18px; left: -9px; top: -9px; }
+.syl-danger.sev-3 .ring { width: 18px; height: 18px; left: -9px; top: -9px; }
+.syl-danger.sev-1 .dot { width: 11px; height: 11px; left: -5.5px; top: -5.5px; background: #ff8a5a; box-shadow: 0 0 9px rgba(255,138,90,.7); }
+.syl-danger.sev-1 .ring { border-color: #ff9a6a; }
+.syl-danger.sev-1 .tag b { color: #ffe7d8; }
+@keyframes syl-danger-pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(7); opacity: 0; } }
+
+/* Knocked-out infrastructure pins (airport, rail, town). */
+.syl-infra { display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  background: rgba(12,18,28,.86); border: 1px solid #355072; border-radius: 18px; padding: 3px 10px 3px 4px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.5); transform: translateX(6px);
+  animation: syl-marker-pop .5s cubic-bezier(.2,.9,.3,1.25) both; }
+.syl-infra .ic { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  border-radius: 50%; background: #14304a; font-size: 12px;
+  animation: syl-ic-pulse 2.4s ease-in-out infinite; }
+.syl-infra b { color: #cfe6ff; font-size: 11.5px; font-weight: 600; }
+
+/* Response-protocol target pills — the labelled "where to act" markers, same
+   badge style as .syl-infra. The coloured dot/accent comes from --c (set per
+   marker from the protocol's legend colour). Clickable (Google-Maps model): a
+   click opens the target's popup → evidence chain. */
+.syl-proto-marker { display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  pointer-events: auto; cursor: pointer;
+  background: rgba(12,18,28,.9); border: 1px solid #355072; border-left: 3px solid var(--c, #38bdf8);
+  border-radius: 16px; padding: 3px 10px 3px 7px; box-shadow: 0 4px 14px rgba(0,0,0,.5);
+  transform: translateX(6px);
+  transition: box-shadow .15s ease, border-color .15s ease;
+  /* per-marker stagger comes from an inline animation-delay (set in JS by index) */
+  animation: syl-marker-pop .5s cubic-bezier(.2,.9,.3,1.25) both; }
+.syl-proto-marker:hover { border-color: var(--c, #7fe0ff);
+  box-shadow: 0 8px 22px rgba(0,0,0,.6), 0 0 0 1px var(--c, #38bdf8) inset;
+  translate: 0 -2px; }
+.syl-proto-marker .pm-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--c, #38bdf8); box-shadow: 0 0 8px var(--c, #38bdf8);
+  animation: syl-dot-pulse 2s ease-in-out infinite; }
+.syl-proto-marker .pm-ic { font-size: 12px; }
+.syl-proto-marker b { color: #eaf2fb; font-size: 11.5px; font-weight: 700;
+  max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+.syl-proto-marker .pm-sub { color: #9fc0e0; font-size: 10px; font-weight: 500; }
+
+/* Map-pill entrance + idle pulse (Peak extent infra pills + Response protocol pills).
+   The pop replays whenever a marker (re)enters the DOM / flips from display:none, so
+   Peak extent pops its infra pills in and each protocol tab pops its targets in.
+   IMPORTANT: animate the independent `scale` property (NOT `transform`) — MapLibre
+   owns each marker's `transform` for positioning, so animating `transform` here would
+   yank the markers to the map origin. `scale` composes with MapLibre's transform. */
+@keyframes syl-marker-pop {
+  0%   { opacity: 0; scale: .55; }
+  55%  { opacity: 1; scale: 1.08; }
+  100% { opacity: 1; scale: 1; }
+}
+@keyframes syl-ic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(96,165,250,0); }
+  50%      { box-shadow: 0 0 0 4px rgba(96,165,250,.28); }
+}
+@keyframes syl-dot-pulse {
+  0%, 100% { box-shadow: 0 0 5px var(--c, #38bdf8); }
+  50%      { box-shadow: 0 0 13px var(--c, #38bdf8); }
+}
+.syl-scenebar { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 6;
+  background: rgba(9,16,26,.9); border: 1px solid #243650; border-radius: 14px; padding: 12px 14px;
+  display: flex; gap: 16px; align-items: stretch; backdrop-filter: blur(8px); }
+.syl-scene-dates { display: flex; gap: 8px; flex-shrink: 0; }
+.syl-date { display: flex; flex-direction: column; gap: 2px; text-align: left; min-width: 116px;
+  background: rgba(20,32,48,.7); border: 1px solid #243650; border-radius: 10px; padding: 8px 11px; cursor: pointer; color: #cfe0ff; }
+.syl-date.on { border-color: #38bdf8; background: rgba(30,64,98,.8); box-shadow: 0 0 0 1px #38bdf8 inset; }
+.syl-date b { font-size: 13px; }
+.syl-date span { font-size: 11px; color: #9fb1c9; }
+.syl-scene-text { flex: 1; min-width: 0; }
+.syl-scene-stat { font-size: 13px; color: #d7e3f4; }
+.syl-scene-stat b { font-size: 20px; color: #7fe0ff; }
+.syl-scene-stat em { color: #9fb1c9; font-style: normal; font-size: 12px; }
+.syl-scene-text p { margin: 4px 0 6px; font-size: 13px; color: #e8eef7; }
+.syl-caveat { font-size: 11px; color: #8aa0bb; }
+
+.syl-play { width: 40px; flex-shrink: 0; border: 1px solid #2a5a7a; border-radius: 10px;
+  background: #1f6feb; color: #fff; font-size: 14px; cursor: pointer; }
+.syl-play:hover { background: #2f7ffb; }
+.syl-refbadge { margin-left: 10px; font-size: 10.5px; color: #ffcaa8; border: 1px solid #5a3a2a;
+  background: rgba(60,30,20,.4); padding: 2px 7px; border-radius: 12px; vertical-align: middle; }
+
+.syl-rain { flex-shrink: 0; padding: 0 12px; border: 1px solid #2a5a7a; border-radius: 10px;
+  background: rgba(20,32,48,.7); color: #cfe0ff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.syl-rain.on { background: rgba(80,120,200,.8); border-color: #6aa0ff; color: #fff; }
+
+.sylhet2022.with-waterlab .maplibregl-ctrl-bottom-right { right: min(44vw, 620px); }
+.syl-waterlab-panel {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  bottom: 112px;
+  width: min(42vw, 600px);
+  min-width: 420px;
+  z-index: 5;
+  border: 1px solid rgba(104, 181, 255, .42);
+  background: #07101a;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+  overflow: hidden;
+}
+.syl-waterlab-head {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(104, 181, 255, .25);
+  background: rgba(8, 17, 29, .92);
+}
+.syl-waterlab-head strong { color: #a5f3ff; font-size: 13px; }
+.syl-waterlab-head span { color: #9fb1c9; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.syl-waterlab-panel iframe { display: block; width: 100%; height: calc(100% - 38px); border: 0; background: #050b12; }
+.syl-cause-map-labels {
+  position: absolute;
+  inset: 60px min(44vw, 620px) 116px 12px;
+  z-index: 4;
+  pointer-events: none;
+}
+.syl-map-cause-label {
+  padding: 7px 10px;
+  border: 1px solid rgba(125, 211, 252, .55);
+  background: rgba(5, 14, 24, .82);
+  color: #dff7ff;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
+  pointer-events: none;
+  position: relative;
+  z-index: 8;
+}
+.sylhet2022 .maplibregl-marker {
+  z-index: 9;
+}
+.syl-uplift-marker {
+  width: 130px;
+  height: 132px;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+.syl-uplift-marker span {
+  position: absolute;
+  left: 48px;
+  bottom: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(224, 242, 254, .72);
+  box-shadow: 0 0 22px rgba(125, 211, 252, .7), 0 0 44px rgba(56, 189, 248, .35);
+  animation: syl-uplift-rise 2.8s ease-in-out infinite;
+}
+.syl-uplift-marker span:nth-child(2) {
+  left: 66px;
+  width: 34px;
+  height: 34px;
+  animation-delay: .7s;
+}
+.syl-uplift-marker span:nth-child(3) {
+  left: 34px;
+  width: 22px;
+  height: 22px;
+  animation-delay: 1.35s;
+}
+.syl-uplift-marker b {
+  position: absolute;
+  left: 10px;
+  top: 4px;
+  padding: 6px 9px;
+  border: 1px solid rgba(253, 230, 138, .72);
+  background: rgba(20, 16, 8, .84);
+  color: #fef3c7;
+  font-size: 11px;
+  white-space: nowrap;
+}
+@keyframes syl-uplift-rise {
+  0% { transform: translateY(22px) scale(.55); opacity: 0; }
+  22% { opacity: .85; }
+  100% { transform: translateY(-78px) scale(1.45); opacity: 0; }
+}
+.syl-air-plume {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  mix-blend-mode: screen;
+}
+.syl-air-plume::before {
+  content: "";
+  position: absolute;
+  left: 4%;
+  bottom: 10%;
+  width: 86%;
+  height: 72%;
+  background:
+    radial-gradient(ellipse at 16% 82%, rgba(125, 211, 252, .20), transparent 24%),
+    radial-gradient(ellipse at 47% 50%, rgba(56, 189, 248, .14), transparent 30%),
+    radial-gradient(ellipse at 77% 20%, rgba(186, 230, 253, .16), transparent 24%);
+  filter: blur(18px);
+  opacity: .68;
+  transform: rotate(-14deg);
+}
+.syl-air-plume i {
+  position: absolute;
+  left: var(--x0);
+  top: var(--y0);
+  width: calc(10px * var(--scale));
+  height: calc(10px * var(--scale));
+  border-radius: 999px;
+  background: rgba(219, 244, 255, .74);
+  box-shadow: 0 0 14px rgba(56, 189, 248, .52), 0 0 28px rgba(56, 189, 248, .25);
+  filter: blur(.4px);
+  animation: syl-moisture-flow var(--dur) linear infinite;
+  animation-delay: var(--delay);
+}
+@keyframes syl-moisture-flow {
+  0% { left: var(--x0); top: var(--y0); transform: scale(.55); opacity: 0; }
+  12% { opacity: .68; }
+  72% { opacity: .52; }
+  100% { left: var(--x1); top: var(--y1); transform: scale(1.35); opacity: 0; }
+}
+.syl-predict-panel {
+  position: absolute;
+  left: 68px;
+  top: 64px;
+  width: 318px;
+  z-index: 6;
+  padding: 13px 14px;
+  border: 1px solid rgba(125, 211, 252, .42);
+  background: rgba(5, 14, 24, .86);
+  color: #d7e3f4;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, .38);
+  backdrop-filter: blur(8px);
+}
+.syl-predict-panel strong {
+  display: block;
+  margin-bottom: 9px;
+  color: #7fe0ff;
+  font-size: 13px;
+}
+.syl-predict-panel div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 7px 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+.syl-predict-panel div b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 999px;
+  background: #1f6feb;
+  color: white;
+  font-size: 11px;
+}
+.syl-predict-panel span {
+  display: block;
+  margin-top: 10px;
+  color: #9fb1c9;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.syl-lift-panel {
+  position: absolute;
+  left: 68px;
+  top: 64px;
+  width: 330px;
+  z-index: 6;
+  padding: 13px 14px;
+  border: 1px solid rgba(253, 230, 138, .48);
+  background: rgba(18, 14, 8, .84);
+  color: #f6ead1;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, .38);
+  backdrop-filter: blur(8px);
+}
+.syl-lift-panel strong {
+  display: block;
+  margin-bottom: 9px;
+  color: #fde68a;
+  font-size: 13px;
+}
+.syl-lift-panel div {
+  margin: 7px 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.syl-rainburst-marker {
+  width: 96px;
+  height: 118px;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+.syl-rainburst-marker::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  top: 0;
+  width: 60px;
+  height: 24px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 22% 56%, rgba(213, 244, 255, .88) 0 10px, rgba(213, 244, 255, 0) 11px),
+    radial-gradient(circle at 48% 42%, rgba(186, 230, 253, .82) 0 14px, rgba(186, 230, 253, 0) 15px),
+    radial-gradient(circle at 76% 58%, rgba(125, 211, 252, .72) 0 11px, rgba(125, 211, 252, 0) 12px),
+    linear-gradient(180deg, rgba(15, 23, 42, .92), rgba(8, 47, 73, .68));
+  box-shadow: 0 0 18px rgba(125,211,252,.35), 0 8px 22px rgba(0,0,0,.42);
+}
+.syl-rainburst-marker::after {
+  content: "";
+  position: absolute;
+  left: 24px;
+  top: 27px;
+  width: 48px;
+  height: 52px;
+  background-image: repeating-linear-gradient(90deg, rgba(125,211,252,.85) 0 1px, transparent 1px 7px);
+  mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 80%, transparent);
+  opacity: .82;
+  animation: syl-rainfall-sheet .62s linear infinite;
+}
+.syl-rainburst-marker i {
+  position: absolute;
+  top: 24px;
+  width: 1.5px;
+  height: 54px;
+  border-radius: 999px;
+  background: linear-gradient(to bottom, rgba(224, 242, 254, 0), rgba(165, 243, 252, .9), rgba(14, 165, 233, .1));
+  animation: syl-rainfall-drop .92s linear infinite;
+}
+.syl-rainburst-marker i:nth-child(1) { left: 30px; animation-delay: -.1s; }
+.syl-rainburst-marker i:nth-child(2) { left: 42px; height: 62px; animation-delay: -.35s; }
+.syl-rainburst-marker i:nth-child(3) { left: 56px; height: 58px; animation-delay: -.62s; }
+.syl-rainburst-marker i:nth-child(4) { left: 68px; height: 66px; animation-delay: -.86s; }
+.syl-rainburst-marker b,
+.syl-rainburst-marker span {
+  position: absolute;
+  left: -6px;
+  padding: 4px 7px;
+  background: rgba(3, 10, 18, .9);
+  border: 1px solid rgba(125, 211, 252, .58);
+  color: #e0f7ff;
+  white-space: nowrap;
+  box-shadow: 0 8px 22px rgba(0,0,0,.34);
+}
+.syl-rainburst-marker b {
+  bottom: 18px;
+  font-size: 11px;
+  font-weight: 900;
+}
+.syl-rainburst-marker span {
+  display: none;
+}
+.syl-rainburst-marker:nth-of-type(2n) b {
+  left: auto;
+  right: -8px;
+}
+@keyframes syl-rainfall-drop {
+  0% { transform: translateY(-12px); opacity: 0; }
+  18% { opacity: .9; }
+  100% { transform: translateY(30px); opacity: 0; }
+}
+@keyframes syl-rainfall-sheet {
+  0% { transform: translateY(-8px); opacity: .62; }
+  100% { transform: translateY(8px); opacity: .9; }
+}.syl-rainburst-panel {
+  position: absolute;
+  left: 68px;
+  top: 64px;
+  width: 360px;
+  z-index: 6;
+  padding: 13px 14px;
+  border: 1px solid rgba(125, 211, 252, .34);
+  background: rgba(3, 12, 20, .82);
+  color: #ecfeff;
+  box-shadow: 0 18px 40px rgba(0,0,0,.34);
+  backdrop-filter: blur(8px);
+}
+.syl-rainburst-panel strong {
+  display: block;
+  margin-bottom: 9px;
+  color: #7dd3fc;
+  font-size: 13px;
+}
+.syl-rainburst-panel div {
+  margin: 7px 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.syl-surge-label {
+  padding: 6px 9px;
+  border: 1px solid rgba(165, 243, 252, .68);
+  background: rgba(3, 10, 18, .86);
+  color: #e0f7ff;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(0,0,0,.36), 0 0 24px rgba(14,165,233,.25);
+}
+.syl-surge-panel {
+  position: absolute;
+  left: 68px;
+  top: 64px;
+  width: 370px;
+  z-index: 6;
+  padding: 13px 14px;
+  border: 1px solid rgba(14, 165, 233, .38);
+  background: rgba(3, 12, 20, .84);
+  color: #ecfeff;
+  box-shadow: 0 18px 40px rgba(0,0,0,.34);
+  backdrop-filter: blur(8px);
+}
+.syl-surge-panel strong {
+  display: block;
+  margin-bottom: 9px;
+  color: #67e8f9;
+  font-size: 13px;
+}
+.syl-surge-panel div {
+  margin: 7px 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.syl-surge-panel b {
+  color: #bfdbfe;
+}
+
+/* Response scene — Google-Maps decision model. The map IS the canvas; the UI is a
+   thin layer rail (left), an always-visible decision line (top), a corner legend,
+   and click-to-open popups → evidence. Everything sits above the floating map
+   markers but below the EvidencePanel (z-index 40) so click-through still works. */
+
+/* DECISION LINE — pinned top, the active protocol's verdict. Always visible. */
+.syl-decision-line {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(82vw, 880px);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 14px;
+  row-gap: 6px;
+  padding: 10px 18px;
+  border: 1px solid rgba(125, 211, 252, .42);
+  border-radius: 18px;
+  background: rgba(12, 18, 28, .92);
+  color: #eaf3ff;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(10px);
+}
+/* Headline is the priority: it gets a readable minimum and wraps normally
+   (never one-word-per-line); metrics wrap to a second row if they don't fit. */
+.syl-decision-line strong {
+  flex: 1 1 280px; min-width: 240px; line-height: 1.32;
+  font-size: 13px; font-weight: 700; color: #eaf3ff;
+}
+.syl-decision-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+  background: #7fe0ff; box-shadow: 0 0 10px #7fe0ff; }
+.syl-decision-metric {
+  display: inline-flex; align-items: baseline; gap: 5px; flex: 0 0 auto;
+  font-size: 12px; white-space: nowrap; max-width: 240px;
+}
+.syl-decision-metric b { color: #7fe0ff; font-weight: 800; }
+.syl-decision-metric em {
+  font-style: normal; font-weight: 500; color: #9fb1c9;
+  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* LAYER RAIL — one active protocol at a time (radio). */
+.syl-layer-rail {
+  position: absolute;
+  top: 112px;
+  left: 12px;
+  width: 160px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(125, 211, 252, .3);
+  border-radius: 12px;
+  background: rgba(12, 18, 28, .9);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(10px);
+}
+.syl-rail-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .6px; color: #7fe0ff; margin-bottom: 2px; }
+.syl-rail-toggle {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #c7d6ea;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(125, 211, 252, .22);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.syl-rail-toggle:hover { border-color: rgba(125, 211, 252, .5); color: #eaf3ff; }
+.syl-rail-toggle.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.syl-rail-caption { margin-top: 4px; font-size: 10.5px; line-height: 1.4; color: #9fb1c9; }
+.syl-rail-sources {
+  margin-top: 6px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  color: #7fe0ff;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.syl-rail-sources:hover { color: #aef0ff; }
+.syl-rail-caveats { margin: 6px 0 0; padding-left: 16px; }
+.syl-rail-caveats li { font-size: 10.5px; line-height: 1.45; color: #9fb1c9; margin-bottom: 4px; }
+
+/* LEGEND — corner swatches built from the active layer's legend. */
+.syl-legend {
+  position: absolute;
+  right: 12px;
+  bottom: 132px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(125, 211, 252, .3);
+  border-radius: 10px;
+  background: rgba(12, 18, 28, .9);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(10px);
+}
+.syl-legend-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: #7fe0ff; }
+.syl-legend-row, .syl-legend-ramp { display: flex; align-items: center; gap: 8px; }
+.syl-legend-swatch { width: 14px; height: 14px; border-radius: 4px; flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, .25); }
+.syl-legend-bar { width: 60px; height: 8px; border-radius: 4px; flex: 0 0 auto;
+  background: linear-gradient(90deg, #2c7fb8, #41b6c4, #a1dab4, #fecc5c, #fd8d3c, #e31a1c); }
+.syl-legend-label { font-size: 11px; color: #cfe0f2; }
+
+/* PROTOCOL POPUP — opened by a map click; <=4 short lines + per-metric source. */
+.syl-proto-popup {
+  position: absolute;
+  left: 50%;
+  bottom: 132px;
+  transform: translateX(-50%);
+  width: min(88vw, 320px);
+  z-index: 16;
+  padding: 12px 14px;
+  border: 1px solid rgba(125, 211, 252, .42);
+  border-radius: 12px;
+  background: rgba(12, 18, 28, .94);
+  color: #eaf3ff;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, .55);
+  backdrop-filter: blur(10px);
+}
+.syl-proto-popup__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.syl-proto-popup__title { font-size: 14px; font-weight: 700; color: #eaf3ff; }
+.syl-proto-popup__close { background: none; border: none; color: #9fb1c9; font-size: 20px;
+  line-height: 1; cursor: pointer; padding: 0 2px; }
+.syl-proto-popup__close:hover { color: #eaf3ff; }
+.syl-proto-popup__metric { display: flex; align-items: baseline; gap: 6px; width: 100%;
+  margin-top: 8px; padding: 0; text-align: left; background: none; border: none; cursor: pointer; }
+.syl-proto-popup__label { font-size: 12px; color: #9fb1c9; }
+.syl-proto-popup__value { font-size: 12.5px; font-weight: 700; color: #eaf3ff; }
+.syl-proto-popup__source { margin-left: auto; font-size: 10.5px; font-weight: 600; color: #7fe0ff; }
+.syl-proto-popup__metric:hover .syl-proto-popup__source { color: #aef0ff; text-decoration: underline; }
+
+@media (max-width: 1100px) {
+  .syl-layer-rail { top: auto; bottom: 132px; }
+  .syl-decision-line { max-width: calc(100vw - 24px); }
+}
+@media (max-width: 1100px) {
+  .syl-waterlab-panel { left: 12px; width: auto; min-width: 0; top: 56px; bottom: 178px; }
+  .syl-cause-map-labels { display: none; }
+  .syl-predict-panel { display: none; }
+  .syl-lift-panel { display: none; }
+  .syl-rainburst-panel { display: none; }
+  .syl-surge-panel { display: none; }
+  .syl-scenebar { flex-direction: column; }
+  .syl-scene-dates { overflow-x: auto; }
+}
+
+
+
+
+
+

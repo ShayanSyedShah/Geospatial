@@ -1,6 +1,7 @@
 import type {
   ComplaintsData, ConnectResult, Country, EducationData, Evidence, Facility,
-  HexagonCollection, Region, Stats, SupplyData, TimeHorizon,
+  HexagonCollection, Provenance, ProtocolResult, Region, ScenarioContext, Stats,
+  SupplyData, TimeHorizon,
 } from '../types';
 
 interface FacilityCollection { country: string; count: number; at_risk: number; facilities: Facility[]; }
@@ -66,6 +67,16 @@ export const api = {
   stats: (country: string) => get<Stats>(`/api/stats?country=${encodeURIComponent(country)}`),
 
   evidence: (h3Id: string) => get<Evidence>(`/api/evidence/${h3Id}`),
+
+  // ---------- BEACON decision sandbox (Sylhet 2022) ----------
+  scenarioContext: () =>
+    get<ScenarioContext>('/api/scenario/sylhet2022/context'),
+
+  protocol: (id: string) =>
+    get<ProtocolResult>(`/api/protocol/${encodeURIComponent(id)}`),
+
+  provenance: (provenanceId: string) =>
+    get<Provenance>(`/api/evidence/${encodeURIComponent(provenanceId)}`),
 
   supply: (country: string, district: string | null) =>
     get<SupplyData>(`/api/supply?country=${encodeURIComponent(country)}` +

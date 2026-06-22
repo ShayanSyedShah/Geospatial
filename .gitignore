@@ -22,3 +22,7 @@ frontend/dev-dist/
 
 # OS
 .DS_Store
+
+backend/data/raw/
+frontend/tsconfig.tsbuildinfo
+backend/data/bgd_adm3.geojson
