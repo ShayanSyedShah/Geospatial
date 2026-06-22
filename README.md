@@ -30,7 +30,24 @@ backend/   FastAPI
            The API just serves that table -> tiny image, instant cold start.
 ```
 
-## Run locally
+## Run with Docker
+```bash
+make up
+```
+
+Open the app at http://localhost:5173. The backend is exposed at
+http://localhost:8001.
+
+Useful targets:
+```bash
+make up-detached     # run containers in the background
+make logs            # follow all logs
+make down            # stop containers
+make precompute      # run python scripts/precompute.py in the backend container
+make download-data   # run python scripts/download_data.py in the backend container
+```
+
+## Run locally without Docker
 ### Backend
 ```bash
 cd backend
@@ -40,14 +57,14 @@ pip install -r requirements.txt
 python scripts/download_data.py      # fetch rasters/boundary/facilities (~600MB)
 python scripts/precompute.py         # build data/hexagons.parquet (commit this)
 
-uvicorn app.main:app --reload        # http://localhost:8000
+uvicorn app.main:app --reload --port 8001
 ```
 
 ### Frontend
 ```bash
 cd frontend
 npm install
-npm run dev                          # http://localhost:5173 (proxies /api -> :8000)
+npm run dev                          # http://localhost:5173 (proxies /api -> :8001)
 ```
 
 ## API
