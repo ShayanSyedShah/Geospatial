@@ -77,9 +77,9 @@ export default function EvidencePanel({ hexagon, time, onClose }: Props) {
           </div>
           <div className="source">
             <strong>Infrastructure</strong>
-            <p>Schools: {evidence?.infrastructure.schools.source ?? 'Giga (ITU/UNICEF) + OpenStreetMap'}</p>
-            <p>Clinics: {evidence?.infrastructure.clinics.source ?? 'Healthsites.io / OpenStreetMap'}</p>
-            <a href={evidence?.infrastructure.clinics.url ?? 'https://healthsites.io'} target="_blank" rel="noopener noreferrer">View source →</a>
+            <p>Schools: {evidence?.infrastructure.schools.source ?? 'UN OCHA / Bangladesh LGED (via HDX)'}</p>
+            <p>Clinics: {evidence?.infrastructure.clinics.source ?? 'UN OCHA / Bangladesh LGED (via HDX)'}</p>
+            <a href={evidence?.infrastructure.clinics.url ?? 'https://data.humdata.org/dataset/bangladesh-health-facilities-by-lged'} target="_blank" rel="noopener noreferrer">View source →</a>
           </div>
         </section>
 
